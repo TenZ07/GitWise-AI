@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────
+   GLOBAL THEME & RESET
+   ──────────────────────────────────────── */
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  /* Your requested deep black/violet background */
+  background-color: #0a0a0f; 
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+/* Remove default link styles */
+a {
+  text-decoration: inherit;
+  color: inherit;
+}
+
+/* ────────────────────────────────────────
+   CUSTOM SCROLLBAR (Sleek Dark Mode)
+   ──────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0f; /* Matches body bg */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d2d44; /* Dark grey-purple */
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6; /* Your primary violet */
+}
+
+/* Firefox Scrollbar Support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2d2d44 #0a0a0f;
+}
+
+/* ────────────────────────────────────────
+   UTILITY CLASSES
+   ──────────────────────────────────────── */
+
+/* Glassmorphism Effect */
+.glass {
+  background: rgba(19, 19, 31, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(139, 92, 246, 0.15); /* Subtle violet border */
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Text Gradient Utility */
+.text-gradient {
+  background: linear-gradient(to right, #ffffff, #8b5cf6, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Input Field Reset */
+input:focus, textarea:focus, button:focus {
+  outline: none;
+  ring: none;
+}
+
+/* Selection Color */
+::selection {
+  background-color: #8b5cf6;
+  color: #ffffff;
+}
