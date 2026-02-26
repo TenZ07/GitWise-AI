@@ -2,33 +2,31 @@ const Repo = require('../models/Repo');
 const { fetchRepoData } = require('../services/githubService');
 const { analyzeRepoWithAI } = require('../services/geminiService');
 
-/**
- * Analyze a repository:
- * 1. Check cache (valid for 24 hours).
- * 2. If miss, fetch data from GitHub.
- * 3. Send data to Gemini AI for analysis.
- * 4. Save results to MongoDB.
- */
 exports.analyzeRepo = async (req, res) => {
   try {
     const { repoUrl } = req.body;
+    const { force } = req.query; // Get 'force' query param (e.g., ?force=true)
 
-    // Validation
     if (!repoUrl || typeof repoUrl !== 'string') {
       return res.status(400).json({ message: 'Valid Repository URL is required' });
     }
 
-    console.log(`🔍 Starting analysis for: ${repoUrl}`);
+    console.log(`🔍 Starting analysis for: ${repoUrl} ${force === 'true' ? '(Force Refresh)' : ''}`);
 
-    // 1. Check Cache
+    // 1. Check Cache ONLY if force is NOT true
     const existingRepo = await Repo.findOne({ repoUrl });
     
-    if (existingRepo) {
+    let skipCache = false;
+    if (force === 'true') {
+      skipCache = true;
+      console.log('⏩ Force refresh requested. Skipping cache check.');
+    }
+
+    if (!skipCache && existingRepo) {
       const now = new Date();
       const lastFetched = new Date(existingRepo.lastFetched);
       const hoursSinceFetch = (now - lastFetched) / (1000 * 60 * 60);
 
-      // If data is less than 24 hours old AND has AI summary, return cache
       if (hoursSinceFetch < 24 && existingRepo.aiSummary) {
         console.log(`✅ Cache hit! Data is ${hoursSinceFetch.toFixed(2)} hours old.`);
         return res.json({ 
@@ -37,8 +35,7 @@ exports.analyzeRepo = async (req, res) => {
           cached: true 
         });
       }
-      
-      console.log(`⏳ Cache expired (${hoursSinceFetch.toFixed(2)}h old) or incomplete. Re-analyzing...`);
+      console.log(`⏳ Cache expired (${hoursSinceFetch.toFixed(2)}h old). Re-analyzing...`);
     }
 
     // 2. Fetch Fresh Data from GitHub
@@ -61,9 +58,9 @@ exports.analyzeRepo = async (req, res) => {
       aiAnalysis = await analyzeRepoWithAI(githubData);
     } catch (aiError) {
       console.error('AI Analysis Failed:', aiError.message);
-      // Fallback: Continue with basic data but mark AI fields as unavailable
       aiAnalysis = {
-        summary: "AI analysis temporarily unavailable.",
+        functionalSummary: "AI analysis temporarily unavailable.",
+        targetAudienceAndUse: "Could not generate use case.",
         techStack: Object.keys(githubData.basicInfo.languages || {}),
         codeHealthScore: 50,
         improvements: ["Unable to generate specific suggestions at this time."]
@@ -81,14 +78,16 @@ exports.analyzeRepo = async (req, res) => {
       languages: githubData.basicInfo.languages,
       contributors: githubData.contributors,
       recentCommits: githubData.recentCommits,
-      fileTree: githubData.fileTree, // Stored for future file-specific AI queries
+      fileTree: githubData.fileTree,
       
       // AI Generated Fields
-      aiSummary: aiAnalysis.summary,
+      aiSummary: aiAnalysis.summary, // Keep legacy key just in case
+      functionalSummary: aiAnalysis.functionalSummary,
+      targetAudienceAndUse: aiAnalysis.targetAudienceAndUse,
       techStack: aiAnalysis.techStack,
       codeHealthScore: aiAnalysis.codeHealthScore,
       improvements: aiAnalysis.improvements,
-      generatedDocs: null // Placeholder for future documentation generation
+      generatedDocs: null
     };
 
     // 5. Save or Update in DB
@@ -96,8 +95,8 @@ exports.analyzeRepo = async (req, res) => {
       { repoUrl },
       repoData,
       { 
-        upsert: true,       // Create if doesn't exist
-        new: true,          // Return the updated document
+        upsert: true,
+        new: true,
         runValidators: true 
       }
     );
@@ -107,7 +106,8 @@ exports.analyzeRepo = async (req, res) => {
     res.json({ 
       message: 'Repository analyzed successfully', 
       data: savedRepo,
-      cached: false 
+      cached: false,
+      forceRefreshed: force === 'true'
     });
 
   } catch (error) {
@@ -119,60 +119,32 @@ exports.analyzeRepo = async (req, res) => {
   }
 };
 
-/**
- * Get a specific repository by ID
- * Used for loading dashboard details without re-analyzing
- */
 exports.getRepoById = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const repo = await Repo.findById(id);
-    
-    if (!repo) {
-      return res.status(404).json({ message: 'Repository not found' });
-    }
-
+    if (!repo) return res.status(404).json({ message: 'Repository not found' });
     res.json(repo);
   } catch (error) {
-    console.error('Get Repo Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * Get a specific repository by URL
- * Useful for checking status before analyzing
- */
 exports.getRepoByUrl = async (req, res) => {
   try {
-    const { url } = req.params; // Expecting encoded URL
-    
+    const { url } = req.params;
     const repo = await Repo.findOne({ repoUrl: decodeURIComponent(url) });
-    
-    if (!repo) {
-      return res.status(404).json({ message: 'Repository not found in cache' });
-    }
-
+    if (!repo) return res.status(404).json({ message: 'Repository not found in cache' });
     res.json(repo);
   } catch (error) {
-    console.error('Get Repo By URL Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * Force refresh cache (Delete and re-analyze)
- */
 exports.refreshRepo = async (req, res) => {
   try {
     const { repoUrl } = req.body;
-    
-    // Delete existing record
     await Repo.findOneAndDelete({ repoUrl });
-    
-    // Trigger analysis again (reusing logic would be better, but calling analyzeRepo directly is tricky in Express)
-    // For now, we just confirm deletion and let the frontend call analyze again
     res.json({ message: 'Cache cleared. Please request analysis again.' });
   } catch (error) {
     res.status(500).json({ message: error.message });
