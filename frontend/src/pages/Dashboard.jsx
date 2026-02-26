@@ -1,21 +1,79 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal } from 'lucide-react';
+import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2 } from 'lucide-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
+import { useState, useEffect } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
+import { analyzeRepo } from '../services/api';
 
 const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { repoData } = location.state || {};
+  // 1. Get initial data and URL from navigation state
+  const initialData = location.state?.repoData;
+  const initialUrl = location.state?.repoData?.repoUrl;
 
-  if (!repoData) {
+  // 2. State Management
+  const [displayData, setDisplayData] = useState(initialData);
+  const [repoUrl, setRepoUrl] = useState(initialUrl);
+  const [isLoading, setIsLoading] = useState(!initialData); // Load if no data
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+
+  // 3. 🔄 EFFECT: If data is missing but we have the URL, fetch from DB
+  useEffect(() => {
+    if (!displayData && repoUrl) {
+      fetchFromDatabase(repoUrl);
+    } else if (!displayData && !repoUrl) {
+      // No data AND no URL? Show error immediately.
+      setIsLoading(false); 
+    }
+  }, []);
+
+  const fetchFromDatabase = async (url) => {
+    setIsLoading(true);
+    try {
+      // Call analyze WITHOUT force=true to just get cached data quickly
+      const result = await analyzeRepo(url, false);
+      
+      if (result && result.data) {
+        setDisplayData(result.data);
+        setRepoUrl(result.data.repoUrl);
+      } else {
+        throw new Error("No data returned from server");
+      }
+    } catch (error) {
+      console.error("Fetch failed:", error);
+      toast.error("Failed to load repository data. Please try again.");
+      navigate('/');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- RENDER LOADING STATE ---
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-bg text-white flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+        <h2 className="text-xl font-semibold">Loading Repository Data...</h2>
+        <p className="text-textMuted mt-2">Fetching from database</p>
+      </div>
+    );
+  }
+
+  // --- RENDER ERROR STATE ---
+  if (!displayData) {
+    return (
+      <div className="min-h-screen bg-bg text-white flex flex-col items-center justify-center">
+        <Toaster position="top-center" />
         <h2 className="text-2xl text-danger mb-4">No Repository Data Found</h2>
+        <p className="text-textMuted mb-6 text-center max-w-md">
+          Could not load data for this repository.
+        </p>
         <button 
           onClick={() => navigate('/')}
-          className="px-6 py-2 bg-primary rounded-lg hover:bg-primaryHover transition"
+          className="px-6 py-2 bg-primary rounded-lg hover:bg-primaryHover transition font-semibold shadow-lg shadow-primary/20"
         >
           Go Back Home
         </button>
@@ -23,51 +81,99 @@ const Dashboard = () => {
     );
   }
 
-  // --- SMART DATA EXTRACTION ---
-  // Try multiple possible keys the AI might have used
+  // --- 🛡️ ULTRA-ROBUST HELPER FUNCTIONS ---
+  
   const getFunctionalSummary = () => {
-    return repoData.functionalSummary || 
-           repoData.summary || 
-           repoData.architecture || 
-           repoData.aiSummary || 
-           "No functional summary available.";
+    // 1. Try all possible keys from AI response
+    const aiSummary = displayData.functionalSummary || 
+                      displayData.summary || 
+                      (displayData.architectureAssessment ? 
+                        `Architecture Pattern: ${displayData.architectureAssessment.pattern}. This system utilizes a ${displayData.architectureAssessment.pattern} structure.` : 
+                        null) ||
+                      displayData.aiSummary;
+
+    // 2. If we have a valid string, return it
+    if (aiSummary && typeof aiSummary === 'string' && aiSummary.trim().length > 0) {
+      return aiSummary;
+    }
+
+    // 3. ULTIMATE FALLBACK: Generate a sentence from Repo Description & Tech Stack
+    const desc = displayData.description || "this software project";
+    const stack = displayData.techStack && displayData.techStack.length > 0 
+                  ? displayData.techStack.join(", ") 
+                  : "modern web technologies";
+    
+    return `This repository hosts ${desc}. It is technically implemented using ${stack}, following standard architectural patterns for this technology stack to deliver its intended functionality.`;
   };
 
   const getUseCase = () => {
-    return repoData.targetAudienceAndUse || 
-           repoData.useCaseSummary || 
-           repoData.useCase || 
-           repoData.purpose || 
-           "Based on the tech stack (" + (repoData.techStack?.slice(0,2).join(", ") || "Unknown") + "), this project is likely used by developers to build modern web applications, automate workflows, or serve as a starter template for similar architectures.";
-  };
-  // -----------------------------
+    const aiUseCase = displayData.targetAudienceAndUse || 
+                      displayData.useCaseSummary || 
+                      displayData.useCase || 
+                      displayData.purpose;
 
-  const functionalSummary = getFunctionalSummary();
-  const useCaseText = getUseCase();
-  
+    if (aiUseCase && typeof aiUseCase === 'string' && aiUseCase.trim().length > 0) {
+      return aiUseCase;
+    }
+
+    // Fallback for Use Case
+    const stack = displayData.techStack && displayData.techStack.length > 0 
+                  ? displayData.techStack.slice(0, 2).join(", ") 
+                  : "Unknown";
+    return `Based on the tech stack (${stack}), this project is likely used by developers to build modern web applications.`;
+  };
+
   const { 
-    techStack, 
-    codeHealthScore, 
-    improvements, 
-    stars, 
-    forks, 
-    contributors, 
-    recentCommits, 
-    owner, 
-    repoName, 
-    description 
-  } = repoData;
+    techStack, codeHealthScore, improvements, stars, forks, 
+    contributors, recentCommits, owner, repoName, description, repoUrl: dataRepoUrl 
+  } = displayData;
+
+  // Ensure repoUrl state is synced
+  useEffect(() => {
+    if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl);
+  }, [dataRepoUrl, repoUrl]);
+
+  // --- RE-ANALYZE HANDLER ---
+  const handleReanalyze = async () => {
+    const urlToUse = repoUrl || dataRepoUrl;
+    if (!urlToUse) {
+      toast.error("Repository URL not found.");
+      return;
+    }
+
+    setIsReanalyzing(true);
+    const loadingToast = toast.loading('Clearing cache & fetching fresh data...');
+
+    try {
+      const result = await analyzeRepo(urlToUse.trim(), true);
+      
+      if (result && result.data) {
+        setDisplayData(result.data);
+        setRepoUrl(result.data.repoUrl);
+        toast.success('Analysis updated successfully!', { id: loadingToast });
+      } else {
+        throw new Error("Invalid response");
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to re-analyze', { id: loadingToast });
+    } finally {
+      setIsReanalyzing(false);
+    }
+  };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return '#10b981';
-    if (score >= 50) return '#f59e0b';
-    return '#ef4444';
+    if (score >= 80) return '#10b981'; // Green
+    if (score >= 50) return '#f59e0b'; // Yellow
+    return '#ef4444'; // Red
   };
 
   const scoreColor = getScoreColor(codeHealthScore);
 
+  // --- RENDER DASHBOARD ---
   return (
     <div className="min-h-screen bg-bg text-textMain pb-20">
+      <Toaster position="top-center" />
+      
       {/* Navbar */}
       <nav className="border-b border-white/10 bg-surface/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -83,7 +189,22 @@ const Dashboard = () => {
               <p className="text-xs text-textMuted truncate max-w-md">{description}</p>
             </div>
           </div>
+
           <div className="flex items-center gap-6 text-sm">
+            {/* 🔄 RE-ANALYZE BUTTON */}
+            <button
+              onClick={handleReanalyze}
+              disabled={isReanalyzing}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                isReanalyzing 
+                  ? 'bg-gray-800 text-gray-400 border-gray-700 cursor-not-allowed' 
+                  : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-white'
+              }`}
+            >
+              <RefreshCw className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} />
+              {isReanalyzing ? 'Analyzing...' : 'Re-analyze'}
+            </button>
+
             <div className="flex items-center gap-2">
               <Star className="w-4 h-4 text-warning fill-warning" />
               <span>{stars}</span>
@@ -98,11 +219,11 @@ const Dashboard = () => {
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8 animate-fade-in">
         
+        {/* Top Grid: Summary & Health Score */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* AI Summary Card */}
           <div className="lg:col-span-2 glass rounded-2xl p-6 border border-white/5 shadow-xl space-y-6">
-            
             <div className="flex items-center gap-3 border-b border-white/10 pb-4">
               <div className="p-2 bg-primary/20 rounded-lg">
                 <FileCode className="w-6 h-6 text-primary" />
@@ -110,27 +231,20 @@ const Dashboard = () => {
               <h2 className="text-xl font-bold">AI Analysis</h2>
             </div>
 
-            {/* 1. What It Does */}
             <div>
-              <h3 className="text-sm font-semibold text-accent uppercase tracking-wider mb-2">
-                What This Repo Does
-              </h3>
+              <h3 className="text-sm font-semibold text-accent uppercase tracking-wider mb-2">What This Repo Does</h3>
               <p className="text-textMain leading-relaxed text-base bg-surface/30 p-4 rounded-xl border-l-4 border-primary">
-                {functionalSummary}
+                {getFunctionalSummary()}
               </p>
             </div>
 
-            {/* 2. What It Is Used For */}
             <div>
-              <h3 className="text-sm font-semibold text-success uppercase tracking-wider mb-2">
-                What It Is Used For
-              </h3>
+              <h3 className="text-sm font-semibold text-success uppercase tracking-wider mb-2">What It Is Used For</h3>
               <p className="text-textMain leading-relaxed text-base bg-surface/30 p-4 rounded-xl border-l-4 border-success">
-                {useCaseText}
+                {getUseCase()}
               </p>
             </div>
 
-            {/* Tech Stack */}
             <div className="pt-2">
               <span className="text-xs text-textMuted mr-2">Tech Stack:</span>
               <div className="inline-flex flex-wrap gap-2">
@@ -178,7 +292,6 @@ const Dashboard = () => {
             </div>
             <h2 className="text-xl font-bold">AI Recommended Improvements</h2>
           </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {improvements && improvements.length > 0 ? (
               improvements.map((imp, idx) => (

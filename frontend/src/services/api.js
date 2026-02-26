@@ -10,12 +10,12 @@ const api = axios.create({
 });
 
 // Helper function to analyze a repo
-export const analyzeRepo = async (repoUrl) => {
+export const analyzeRepo = async (repoUrl, force = false) => {
   try {
-    const response = await api.post('/api/repo/analyze', { repoUrl });
+    const url = force ? '/api/repo/analyze?force=true' : '/api/repo/analyze';
+    const response = await api.post(url, { repoUrl });
     return response.data;
   } catch (error) {
-    console.error('API Error:', error);
     throw error.response?.data || { message: 'Failed to analyze repository' };
   }
 };

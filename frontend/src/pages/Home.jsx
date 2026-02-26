@@ -13,19 +13,17 @@ const Home = () => {
     e.preventDefault();
     
     if (!url.includes('github.com')) {
-      toast.error('Please enter a valid GitHub URL (e.g., https://github.com/user/repo)');
+      toast.error('Please enter a valid GitHub URL');
       return;
     }
 
     setLoading(true);
     try {
-      // Call Backend
       const result = await analyzeRepo(url);
       
       toast.success(result.cached ? 'Loaded from cache!' : 'Analysis complete!');
       
-      // Navigate to Dashboard with the data
-      // We pass the full data object via state to avoid refetching immediately
+      // ✅ CRITICAL LINE: Ensure you pass the object inside 'state'
       navigate('/dashboard', { state: { repoData: result.data } });
       
     } catch (error) {
