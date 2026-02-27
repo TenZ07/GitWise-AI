@@ -1,52 +1,38 @@
 require('dotenv').config();
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
-const connectDB = require('./config/db');
 const repoRoutes = require('./routes/repo');
 
-// Initialize Express App
 const app = express();
-const server = http.createServer(app);
+const PORT = process.env.PORT || 5000;
 
-// Initialize Socket.io
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
+// ✅ Use CLIENT_URL for CORS
+const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true
+  origin: allowedOrigin,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log(`✅ MongoDB Connected`))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+// Routes
 app.use('/api/repo', repoRoutes);
 
-// Connect to Database
-connectDB();
-
-// Basic Route to test server
+// Health Check
 app.get('/', (req, res) => {
-  res.json({ message: 'GitWise AI API is running 🚀' });
+  res.json({ message: 'GitWise AI API is running', clientUrl: allowedOrigin });
 });
 
-// Socket.io Connection Logic
-io.on('connection', (socket) => {
-  console.log(`⚡ User connected: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`🔌 User disconnected: ${socket.id}`);
-  });
-});
-
-// Start Server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`🌍 Server running on port ${PORT}`);
+  console.log(`🔗 Allowed Client Origin: ${allowedOrigin}`);
 });
