@@ -3,71 +3,86 @@ const { fetchRepoData } = require('../services/githubService');
 const { analyzeRepoWithAI } = require('../services/geminiService');
 
 exports.analyzeRepo = async (req, res) => {
+  console.log('🚀 [CONTROLLER] 1. Function Entered');
+  
   try {
+    // 2. Check Request Body
+    console.log('📦 [CONTROLLER] 2. Request Body:', JSON.stringify(req.body));
     const { repoUrl } = req.body;
-    const { force } = req.query; // Get 'force' query param (e.g., ?force=true)
-
+    
     if (!repoUrl || typeof repoUrl !== 'string') {
+      console.error('❌ [CONTROLLER] 3. Validation Failed: No URL');
       return res.status(400).json({ message: 'Valid Repository URL is required' });
     }
 
-    console.log(`🔍 Starting analysis for: ${repoUrl} ${force === 'true' ? '(Force Refresh)' : ''}`);
+    console.log(`🔍 [CONTROLLER] 4. Starting analysis for: ${repoUrl}`);
 
-    // 1. Check Cache ONLY if force is NOT true
-    const existingRepo = await Repo.findOne({ repoUrl });
-    
+    // 5. Check Cache Logic
+    const { force } = req.query;
     let skipCache = false;
     if (force === 'true') {
       skipCache = true;
-      console.log('⏩ Force refresh requested. Skipping cache check.');
+      console.log('⏩ [CONTROLLER] 5. Force Refresh requested.');
     }
 
-    if (!skipCache && existingRepo) {
-      const now = new Date();
-      const lastFetched = new Date(existingRepo.lastFetched);
-      const hoursSinceFetch = (now - lastFetched) / (1000 * 60 * 60);
+    if (!skipCache) {
+      console.log('⏳ [CONTROLLER] 6. Checking Database for cache...');
+      const existingRepo = await Repo.findOne({ repoUrl });
+      
+      if (existingRepo) {
+        console.log('💾 [CONTROLLER] 7. Found existing record.');
+        const now = new Date();
+        const lastFetched = new Date(existingRepo.lastFetched);
+        const hoursSinceFetch = (now - lastFetched) / (1000 * 60 * 60);
 
-      if (hoursSinceFetch < 24 && existingRepo.aiSummary) {
-        console.log(`✅ Cache hit! Data is ${hoursSinceFetch.toFixed(2)} hours old.`);
-        return res.json({ 
-          message: 'Data retrieved from cache', 
-          data: existingRepo,
-          cached: true 
-        });
+        if (hoursSinceFetch < 24 && existingRepo.functionalSummary) {
+          console.log(`✅ [CONTROLLER] 8. Cache Hit! (${hoursSinceFetch.toFixed(2)}h old). Returning cached data.`);
+          return res.json({ 
+            message: 'Data retrieved from cache', 
+            existingRepo,
+            cached: true 
+          });
+        }
+        console.log(`⏳ [CONTROLLER] 9. Cache Expired. Re-fetching...`);
+      } else {
+        console.log('🆕 [CONTROLLER] 10. No existing record found. Fresh analysis.');
       }
-      console.log(`⏳ Cache expired (${hoursSinceFetch.toFixed(2)}h old). Re-analyzing...`);
     }
 
-    // 2. Fetch Fresh Data from GitHub
+    // 11. Fetch from GitHub
+    console.log('🔄 [CONTROLLER] 11. Calling GitHub Service...');
     let githubData;
     try {
-      console.log('🔄 Fetching data from GitHub API...');
       githubData = await fetchRepoData(repoUrl);
+      console.log('✅ [CONTROLLER] 12. GitHub Data Received. Owner:', githubData.basicInfo.owner);
     } catch (ghError) {
-      console.error('GitHub Fetch Failed:', ghError.message);
+      console.error('❌ [CONTROLLER] 13. GitHub Fetch Failed:', ghError.message);
       return res.status(502).json({ 
-        message: 'Failed to fetch data from GitHub. Please check the URL and your GitHub Token.',
+        message: 'Failed to fetch from GitHub',
         details: ghError.message 
       });
     }
 
-    // 3. Run AI Analysis
+    // 14. Run AI Analysis
+    console.log('🤖 [CONTROLLER] 14. Calling AI Service...');
     let aiAnalysis;
     try {
-      console.log('🤖 Sending data to Gemini AI...');
       aiAnalysis = await analyzeRepoWithAI(githubData);
+      console.log('✅ [CONTROLLER] 15. AI Analysis Received. Score:', aiAnalysis.codeHealthScore);
     } catch (aiError) {
-      console.error('AI Analysis Failed:', aiError.message);
+      console.error('❌ [CONTROLLER] 16. AI Analysis Failed:', aiError.message);
+      // Fallback AI data so we don't crash
       aiAnalysis = {
-        functionalSummary: "AI analysis temporarily unavailable.",
+        functionalSummary: "AI service unavailable.",
         targetAudienceAndUse: "Could not generate use case.",
         techStack: Object.keys(githubData.basicInfo.languages || {}),
         codeHealthScore: 50,
-        improvements: ["Unable to generate specific suggestions at this time."]
+        improvements: ["Retry analysis later."]
       };
     }
 
-    // 4. Prepare Full Data Object
+    // 17. Save to DB
+    console.log('💾 [CONTROLLER] 17. Saving to Database...');
     const repoData = {
       repoUrl,
       owner: githubData.basicInfo.owner,
@@ -79,46 +94,39 @@ exports.analyzeRepo = async (req, res) => {
       contributors: githubData.contributors,
       recentCommits: githubData.recentCommits,
       fileTree: githubData.fileTree,
-      
-      // AI Generated Fields
-      aiSummary: aiAnalysis.summary, // Keep legacy key just in case
       functionalSummary: aiAnalysis.functionalSummary,
       targetAudienceAndUse: aiAnalysis.targetAudienceAndUse,
       techStack: aiAnalysis.techStack,
       codeHealthScore: aiAnalysis.codeHealthScore,
       improvements: aiAnalysis.improvements,
-      generatedDocs: null
+      riskAssessment: aiAnalysis.riskAssessment,
+      architectureAssessment: aiAnalysis.architectureAssessment
     };
 
-    // 5. Save or Update in DB
     const savedRepo = await Repo.findOneAndUpdate(
       { repoUrl },
       repoData,
-      { 
-        upsert: true,
-        new: true,
-        runValidators: true 
-      }
+      { upsert: true, returnDocument: 'after', runValidators: true }
     );
 
-    console.log(`✅ Analysis complete for ${repoUrl}. Saved to DB.`);
-
+    console.log('✅ [CONTROLLER] 18. Analysis Complete & Saved.');
     res.json({ 
       message: 'Repository analyzed successfully', 
-      data: savedRepo,
+      savedRepo,
       cached: false,
       forceRefreshed: force === 'true'
     });
 
   } catch (error) {
-    console.error('❌ Controller Critical Error:', error);
+    console.error('💥 [CONTROLLER] CRITICAL ERROR:', error);
     res.status(500).json({ 
-      message: 'Internal server error during analysis',
+      message: 'Internal server error',
       error: error.message 
     });
   }
 };
 
+// Other exports (keep your existing ones)
 exports.getRepoById = async (req, res) => {
   try {
     const { id } = req.params;
