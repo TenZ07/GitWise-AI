@@ -65,7 +65,6 @@ const ChatBox = ({ repoUrl }) => {
         </div>
         <div>
           <h3 className="font-bold text-white">GitWise Architect</h3>
-          <p className="text-xs text-textMuted">Powered by OpenRouter</p>
         </div>
       </div>
 
@@ -145,7 +144,7 @@ const ChatBox = ({ repoUrl }) => {
           </button>
         </div>
         <p className="text-[10px] text-textMuted mt-2 text-center">
-          AI can make mistakes. Verify critical code suggestions.
+          GitWise AI can make mistakes. Verify critical code suggestions.
         </p>
       </div>
     </div>
