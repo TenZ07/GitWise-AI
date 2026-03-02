@@ -94,6 +94,24 @@ const Dashboard = () => {
     <div className="min-h-screen bg-bg text-textMain pb-20">
       <Toaster position="top-center" />
       
+      {/* Floating GitHub Button */}
+      <a 
+        href= "https://github.com/TenZ07"
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="fixed bottom-8 left-8 z-50 group"
+      >
+        <div className="relative">
+          {/* Animated glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-500 to-accent rounded-full blur-lg opacity-60 group-hover:opacity-100 animate-pulse transition-opacity duration-300"></div>
+          
+          {/* Button */}
+          <div className="relative flex items-center gap-3 px-6 py-3 bg-surface border border-white/10 rounded-full shadow-2xl hover:shadow-primary/50 transition-all duration-300 group-hover:scale-110 group-hover:border-primary/50">
+            <Github className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
+          </div>
+        </div>
+      </a>
+      
       {/* Navbar */}
       <nav className="border-b border-white/10 bg-surface/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
@@ -126,15 +144,37 @@ const Dashboard = () => {
           {/* LEFT COLUMN: Analysis (8 cols) */}
           <div className={`lg:col-span-8 space-y-6 ${activeTab === 'chat' ? 'hidden lg:block' : 'block'}`}>
             
-            {/* Top Row: Compact Score + Summary */}
+            {/* Top Row: Profile + Score + Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Compact Score Card */}
-              <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center bg-gradient-to-br from-surface/50 to-surface/30">
-                <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3">Health Score</h3>
-                <div className="w-24 h-24 relative">
-                  <CircularProgressbar value={codeHealthScore} text={`${codeHealthScore}`} styles={buildStyles({ pathColor: scoreColor, textColor: '#fff', trailColor: '#2d2d44', textSize: '28px', strokeWidth: 12 })} />
+              {/* Left Column: Profile + Health Score */}
+              <div className="flex flex-col gap-6">
+                {/* Profile Card */}
+                <a 
+                  href={`https://github.com/${owner}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="glass rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center bg-gradient-to-br from-surface/50 to-surface/30 hover:border-primary/30 transition-all duration-300 group cursor-pointer"
+                >
+                  <div className="relative mb-3">
+                    <div className="absolute inset-0 bg-primary/30 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <img 
+                      src={`https://github.com/${owner}.png`} 
+                      alt={owner}
+                      className="w-20 h-20 rounded-full border-2 border-primary/30 group-hover:border-primary transition-all duration-300 relative z-10"
+                    />
+                  </div>
+                  <h3 className="text-sm font-bold text-white mb-1">{owner}</h3>
+                  <p className="text-xs text-primary group-hover:text-accent transition-colors duration-300">View Profile</p>
+                </a>
+
+                {/* Health Score Card */}
+                <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center bg-gradient-to-br from-surface/50 to-surface/30">
+                  <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3">Health Score</h3>
+                  <div className="w-24 h-24 relative">
+                    <CircularProgressbar value={codeHealthScore} text={`${codeHealthScore}`} styles={buildStyles({ pathColor: scoreColor, textColor: '#fff', trailColor: '#2d2d44', textSize: '28px', strokeWidth: 12 })} />
+                  </div>
+                  <p className="mt-2 text-xs font-medium text-textMuted">{codeHealthScore >= 80 ? "Excellent" : codeHealthScore >= 50 ? "Good" : "Needs Work"}</p>
                 </div>
-                <p className="mt-2 text-xs font-medium text-textMuted">{codeHealthScore >= 80 ? "Excellent" : codeHealthScore >= 50 ? "Good" : "Needs Work"}</p>
               </div>
 
               {/* Summary Text */}

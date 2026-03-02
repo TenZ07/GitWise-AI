@@ -72,6 +72,24 @@ const Home = () => {
     <div className="min-h-screen bg-bg text-textMain flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <Toaster position="top-center" />
       
+      {/* Floating GitHub Button */}
+      <a 
+        href="https://github.com/TenZ07" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="fixed bottom-8 left-8 z-50 group"
+      >
+        <div className="relative">
+          {/* Animated glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-500 to-accent rounded-full blur-lg opacity-60 group-hover:opacity-100 animate-pulse transition-opacity duration-300"></div>
+          
+          {/* Button */}
+          <div className="relative flex items-center gap-3 px-6 py-3 bg-surface border border-white/10 rounded-full shadow-2xl hover:shadow-primary/50 transition-all duration-300 group-hover:scale-110 group-hover:border-primary/50">
+            <Github className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
+          </div>
+        </div>
+      </a>
+      
       {/* Background Glow Effects */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/10 rounded-full blur-[120px] pointer-events-none"></div>
