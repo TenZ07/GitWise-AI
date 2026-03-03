@@ -86,7 +86,7 @@ CLIENT_URL=http://localhost:5173
 NODE_ENV=development
 
 # MongoDB Atlas Connection
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/gitwise
+MONGO_URI=mongodb_url
 
 # GitHub API Token
 GITHUB_TOKEN=ghp_your_github_personal_access_token
