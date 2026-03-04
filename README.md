@@ -27,15 +27,19 @@ The application fetches repository metadata, file structures, and commit history
 
 ##  Features
 
--  Repository Analysis: Automated extraction of tech stack, file structure, and commit history
--  Code Health Scoring: Algorithmic scoring (0-100) based on maintainability and structure
--  AI Chatbot: Context-aware chat interface powered by OpenRouter
--  Contributor Insights: Visualization of top contributors and recent activity
--  Actionable Improvements: AI-generated suggestions referencing specific file paths
--  Smart Caching: MongoDB-based caching strategy (24h) to reduce API costs
--  Dynamic Model Selection: Switch AI providers via environment variables without code changes
--  Responsive UI: Glassmorphic design with purple theme optimized for desktop and mobile
--  Secure: API keys stored server-side only, never exposed to frontend
+-  **Repository Analysis**: Automated extraction of tech stack, file structure, and commit history
+-  **🤖 Deep Code Analysis (NEW)**: Groq AI analyzes actual source code files for quality, security, and performance
+-  **Code Health Scoring**: Algorithmic scoring (0-100) based on maintainability, structure, and code quality
+-  **AI Chatbot**: Context-aware chat interface powered by OpenRouter (Claude, GPT-4, Llama 3, Nemotron)
+-  **Contributor Insights**: Visualization of top contributors and recent activity
+-  **Actionable Improvements**: AI-generated suggestions referencing specific file paths
+-  **🛡️ Security Analysis**: Identifies security vulnerabilities with severity levels and recommendations
+-  **⚡ Performance Insights**: Detects performance bottlenecks and optimization opportunities
+-  **🎯 Smart File Selection**: Groq AI intelligently identifies 10-15 most critical files to analyze
+-  **Smart Caching**: MongoDB-based caching strategy (24h) to reduce API costs
+-  **Dynamic Model Selection**: Switch AI providers via environment variables without code changes
+-  **Responsive UI**: Glassmorphic design with purple theme optimized for desktop and mobile
+-  **Secure**: API keys stored server-side only, never exposed to frontend
 
 ---
 
@@ -88,18 +92,31 @@ NODE_ENV=development
 # MongoDB Atlas Connection
 MONGO_URI=mongodb_url
 
-# GitHub API Token
+# GitHub API Token (Required)
 GITHUB_TOKEN=ghp_your_github_personal_access_token
 
 # Google Gemini API (Primary AI for Analysis)
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=model_name
+GEMINI_MODEL=gemini-2.5-flash-lite
+
+# Groq API (NEW - For Deep Code Analysis)
+GROQ_API_KEY=your_groq_api_key_here
 
 # OpenRouter API (For Chat Feature)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=model_name
+OPENROUTER_MODEL=nvidia/nemotron-3-nano-30b-a3b:free
 
+# OAuth (Optional - Future Feature)
+GITHUB_CLIENT_ID=your_oauth_client_id
+GITHUB_CLIENT_SECRET=your_oauth_client_secret
 ```
+
+**Important Notes:**
+- `GITHUB_TOKEN`: Generate at https://github.com/settings/tokens with `repo` scope
+- `MONGO_URI`: Get from MongoDB Atlas → Connect → Drivers
+- `GEMINI_API_KEY`: Free tier available at Google AI Studio
+- `GROQ_API_KEY`: **NEW** - Get free key at https://console.groq.com/keys (for code analysis)
+- `OPENROUTER_API_KEY`: Required for chat functionality
 
 #### Frontend Environment Variables
 

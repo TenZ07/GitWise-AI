@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy } from 'lucide-react';
+import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp } from 'lucide-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { useState, useEffect } from 'react';
@@ -211,6 +211,105 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
+
+            {/* 🆕 Code Analysis Section (Groq AI) */}
+            {displayData.codeAnalysis && (
+              <div className="glass rounded-2xl p-6 border border-white/5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
+                  </h3>
+                  <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full">
+                    {displayData.codeAnalysis.analyzedFiles?.length || 0} files analyzed
+                  </span>
+                </div>
+
+                {/* Code Quality Insights */}
+                {displayData.codeAnalysis.codeQualityInsights && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4"/> Code Quality
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {displayData.codeAnalysis.codeQualityInsights.strengths?.length > 0 && (
+                        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+                          <p className="text-xs font-bold text-success mb-2">✓ Strengths</p>
+                          <ul className="space-y-1">
+                            {displayData.codeAnalysis.codeQualityInsights.strengths.slice(0, 3).map((s, i) => (
+                              <li key={i} className="text-xs text-textMuted">• {s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {displayData.codeAnalysis.codeQualityInsights.weaknesses?.length > 0 && (
+                        <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+                          <p className="text-xs font-bold text-warning mb-2">⚠ Weaknesses</p>
+                          <ul className="space-y-1">
+                            {displayData.codeAnalysis.codeQualityInsights.weaknesses.slice(0, 3).map((w, i) => (
+                              <li key={i} className="text-xs text-textMuted">• {w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Security Concerns */}
+                {displayData.codeAnalysis.securityConcerns?.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-danger mb-3 flex items-center gap-2">
+                      <Shield className="w-4 h-4"/> Security Concerns
+                    </h4>
+                    <div className="space-y-2">
+                      {displayData.codeAnalysis.securityConcerns.slice(0, 3).map((concern, i) => (
+                        <div key={i} className="bg-danger/10 border border-danger/20 rounded-lg p-3">
+                          <div className="flex items-start justify-between mb-1">
+                            <p className="text-sm font-medium text-white">{concern.issue}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              concern.severity === 'HIGH' ? 'bg-danger text-white' :
+                              concern.severity === 'MEDIUM' ? 'bg-warning text-white' :
+                              'bg-gray-600 text-white'
+                            }`}>
+                              {concern.severity}
+                            </span>
+                          </div>
+                          <p className="text-xs text-textMuted mb-1">{concern.recommendation}</p>
+                          <p className="text-[10px] text-primary font-mono">📁 {concern.file}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Performance Issues */}
+                {displayData.codeAnalysis.performanceIssues?.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-warning mb-3 flex items-center gap-2">
+                      <Zap className="w-4 h-4"/> Performance Issues
+                    </h4>
+                    <div className="space-y-2">
+                      {displayData.codeAnalysis.performanceIssues.slice(0, 3).map((issue, i) => (
+                        <div key={i} className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+                          <div className="flex items-start justify-between mb-1">
+                            <p className="text-sm font-medium text-white">{issue.issue}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              issue.impact === 'HIGH' ? 'bg-danger text-white' :
+                              issue.impact === 'MEDIUM' ? 'bg-warning text-white' :
+                              'bg-gray-600 text-white'
+                            }`}>
+                              {issue.impact}
+                            </span>
+                          </div>
+                          <p className="text-xs text-textMuted mb-1">{issue.solution}</p>
+                          <p className="text-[10px] text-primary font-mono">📁 {issue.file}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Commits & Contributors Split */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

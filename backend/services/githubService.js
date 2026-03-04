@@ -13,6 +13,114 @@ const parseRepoUrl = (url) => {
 };
 
 /**
+ * Fetches file content from GitHub
+ * @param {string} owner - Repository owner
+ * @param {string} repoName - Repository name
+ * @param {string} filePath - Path to the file
+ * @returns {Promise<Object>} - File content and metadata
+ */
+const fetchFileContent = async (owner, repoName, filePath) => {
+  const headers = {
+    Authorization: `token ${GITHUB_TOKEN}`,
+    Accept: 'application/vnd.github.v3.raw' // Get raw content
+  };
+
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/repos/${owner}/${repoName}/contents/${filePath}`,
+      { headers, responseType: 'text' } // Ensure we get text
+    );
+
+    // Convert to string if it's not already
+    let content = response.data;
+    if (typeof content !== 'string') {
+      if (Buffer.isBuffer(content)) {
+        content = content.toString('utf-8');
+      } else if (typeof content === 'object') {
+        content = JSON.stringify(content);
+      } else {
+        content = String(content);
+      }
+    }
+
+    return {
+      path: filePath,
+      content: content,
+      size: content.length
+    };
+  } catch (error) {
+    console.error(`❌ Failed to fetch ${filePath}:`, error.message);
+    return {
+      path: filePath,
+      content: null,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * Fetches multiple file contents in parallel
+ * @param {string} owner - Repository owner
+ * @param {string} repoName - Repository name
+ * @param {Array<string>} filePaths - Array of file paths
+ * @returns {Promise<Array>} - Array of file contents
+ */
+const fetchMultipleFiles = async (owner, repoName, filePaths) => {
+  console.log(`📥 Fetching ${filePaths.length} files from GitHub...`);
+  
+  const filePromises = filePaths.map(path => fetchFileContent(owner, repoName, path));
+  const results = await Promise.all(filePromises);
+  
+  // Filter out failed fetches
+  const successfulFetches = results.filter(file => file.content !== null);
+  console.log(`✅ Successfully fetched ${successfulFetches.length}/${filePaths.length} files`);
+  
+  return successfulFetches;
+};
+
+/**
+ * Recursively fetches file tree from GitHub
+ * @param {string} owner - Repository owner
+ * @param {string} repoName - Repository name
+ * @param {string} path - Directory path (default: root)
+ * @param {number} depth - Maximum recursion depth
+ * @returns {Promise<Array>} - Array of file objects
+ */
+const fetchFileTreeRecursive = async (owner, repoName, path = '', depth = 2) => {
+  const headers = {
+    Authorization: `token ${GITHUB_TOKEN}`,
+    Accept: 'application/vnd.github.v3+json'
+  };
+
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/repos/${owner}/${repoName}/contents/${path}`,
+      { headers }
+    );
+
+    let allFiles = [];
+
+    for (const item of response.data) {
+      if (item.type === 'file') {
+        allFiles.push({ name: item.name, type: 'file', path: item.path });
+      } else if (item.type === 'dir' && depth > 0) {
+        // Skip common directories that don't contain source code
+        const skipDirs = ['node_modules', '.git', 'dist', 'build', 'coverage', '.next', 'out', 'public', 'assets'];
+        if (!skipDirs.includes(item.name)) {
+          const subFiles = await fetchFileTreeRecursive(owner, repoName, item.path, depth - 1);
+          allFiles = allFiles.concat(subFiles);
+        }
+      }
+    }
+
+    return allFiles;
+  } catch (error) {
+    console.error(`Failed to fetch tree for ${path}:`, error.message);
+    return [];
+  }
+};
+
+/**
  * Fetches all repo data in parallel
  * @param {string} repoUrl - The full GitHub repository URL
  * @returns {Promise<Object>} - Combined repo data
@@ -27,14 +135,17 @@ const fetchRepoData = async (repoUrl) => {
 
   try {
     // Execute all requests in parallel for speed
-    const [repoRes, commitsRes, contributorsRes, languagesRes, contentsRes] = await Promise.all([
+    const [repoRes, commitsRes, contributorsRes, languagesRes] = await Promise.all([
       axios.get(`${BASE_URL}/repos/${owner}/${repoName}`, { headers }),
       axios.get(`${BASE_URL}/repos/${owner}/${repoName}/commits?per_page=10`, { headers }),
       axios.get(`${BASE_URL}/repos/${owner}/${repoName}/contributors?per_page=10`, { headers }),
-      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/languages`, { headers }),
-      // Fetch root directory to get file tree structure (limited to first 100 items)
-      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/contents?per_page=100`, { headers })
+      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/languages`, { headers })
     ]);
+
+    // Fetch file tree recursively (up to 2 levels deep)
+    console.log('📂 Fetching file tree recursively...');
+    const fileTree = await fetchFileTreeRecursive(owner, repoName, '', 2);
+    console.log(`✅ Found ${fileTree.length} files in repository`);
 
     // Process Commits
     const recentCommits = commitsRes.data.map(commit => ({
@@ -51,11 +162,6 @@ const fetchRepoData = async (repoUrl) => {
       avatar_url: contrib.avatar_url,
       contributions: contrib.contributions
     }));
-
-    // Process File Tree (simplified for now: just names and types)
-    const fileTree = contentsRes.data
-      .filter(item => item.type === 'file' || item.type === 'dir')
-      .map(item => ({ name: item.name, type: item.type, path: item.path }));
 
     return {
       basicInfo: {
@@ -77,4 +183,10 @@ const fetchRepoData = async (repoUrl) => {
   }
 };
 
-module.exports = { fetchRepoData, parseRepoUrl };
+module.exports = { 
+  fetchRepoData, 
+  parseRepoUrl,
+  fetchFileContent,
+  fetchMultipleFiles,
+  fetchFileTreeRecursive
+};

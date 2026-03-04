@@ -100,7 +100,8 @@ exports.analyzeRepo = async (req, res) => {
       codeHealthScore: aiAnalysis.codeHealthScore,
       improvements: aiAnalysis.improvements,
       riskAssessment: aiAnalysis.riskAssessment,
-      architectureAssessment: aiAnalysis.architectureAssessment
+      architectureAssessment: aiAnalysis.architectureAssessment,
+      codeAnalysis: aiAnalysis.codeAnalysis // 🆕 Save Groq code analysis
     };
 
     const savedRepo = await Repo.findOneAndUpdate(

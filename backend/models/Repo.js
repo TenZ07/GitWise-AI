@@ -28,6 +28,37 @@ const repoSchema = new mongoose.Schema({
   architectureAssessment: Object,
   scoreJustification: String,
   
+  // 🆕 Code Analysis Fields (Groq AI)
+  codeAnalysis: {
+    analyzedFiles: [String],
+    codeQualityInsights: {
+      strengths: [String],
+      weaknesses: [String],
+      codeSmells: [String]
+    },
+    securityConcerns: [{
+      issue: String,
+      severity: String,
+      file: String,
+      recommendation: String
+    }],
+    architecturePatterns: {
+      detected: [String],
+      recommendations: [String]
+    },
+    performanceIssues: [{
+      issue: String,
+      file: String,
+      impact: String,
+      solution: String
+    }],
+    bestPractices: {
+      followed: [String],
+      missing: [String]
+    },
+    technicalDebt: [String]
+  },
+  
   lastFetched: {
     type: Date,
     default: Date.now
