@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { useState, useEffect } from 'react';
@@ -90,22 +90,24 @@ const Dashboard = () => {
   const getScoreColor = (score) => score >= 80 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444';
   const scoreColor = getScoreColor(codeHealthScore);
 
+  // ✅ Helper to get Groq data (supports both root level and nested for compatibility)
+  const getGroqData = (field) => {
+    return displayData[field] || displayData.codeAnalysis?.[field];
+  };
+
   return (
     <div className="min-h-screen bg-bg text-textMain pb-20">
       <Toaster position="top-center" />
       
       {/* Floating GitHub Button */}
       <a 
-        href= "https://github.com/TenZ07"
+        href="https://github.com/TenZ07"
         target="_blank" 
         rel="noopener noreferrer"
         className="fixed bottom-8 left-8 z-50 group"
       >
         <div className="relative">
-          {/* Animated glow effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-500 to-accent rounded-full blur-lg opacity-60 group-hover:opacity-100 animate-pulse transition-opacity duration-300"></div>
-          
-          {/* Button */}
           <div className="relative flex items-center gap-3 px-6 py-3 bg-surface border border-white/10 rounded-full shadow-2xl hover:shadow-primary/50 transition-all duration-300 group-hover:scale-110 group-hover:border-primary/50">
             <Github className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
           </div>
@@ -195,7 +197,7 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* 5 Improvements Grid */}
+            {/* Improvements Grid */}
             <div className="glass rounded-2xl p-6 border border-white/5">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-warning"/> Key Improvements</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -212,41 +214,45 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* 🆕 Code Analysis Section (Groq AI) */}
-            {displayData.codeAnalysis && (
+            {/* 🆕 Deep Code Analysis Section (Groq AI) - UPDATED */}
+            {(getGroqData('codeQualityInsights') || getGroqData('securityConcerns') || getGroqData('performanceIssues')) && (
               <div className="glass rounded-2xl p-6 border border-white/5">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold flex items-center gap-2">
                     <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
                   </h3>
-                  <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full">
-                    {displayData.codeAnalysis.analyzedFiles?.length || 0} files analyzed
+                  <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+                    📁 {displayData.filesAnalyzed || getGroqData('analyzedFiles')?.length || 0} files analyzed
                   </span>
                 </div>
 
                 {/* Code Quality Insights */}
-                {displayData.codeAnalysis.codeQualityInsights && (
+                {getGroqData('codeQualityInsights') && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4"/> Code Quality
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {displayData.codeAnalysis.codeQualityInsights.strengths?.length > 0 && (
+                      {getGroqData('codeQualityInsights').strengths?.length > 0 && (
                         <div className="bg-success/10 border border-success/20 rounded-lg p-4">
-                          <p className="text-xs font-bold text-success mb-2">✓ Strengths</p>
-                          <ul className="space-y-1">
-                            {displayData.codeAnalysis.codeQualityInsights.strengths.slice(0, 3).map((s, i) => (
-                              <li key={i} className="text-xs text-textMuted">• {s}</li>
+                          <p className="text-xs font-bold text-success mb-2 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3"/> Strengths
+                          </p>
+                          <ul className="space-y-1.5">
+                            {getGroqData('codeQualityInsights').strengths.slice(0, 3).map((s, i) => (
+                              <li key={i} className="text-xs text-textMuted leading-relaxed">• {s}</li>
                             ))}
                           </ul>
                         </div>
                       )}
-                      {displayData.codeAnalysis.codeQualityInsights.weaknesses?.length > 0 && (
+                      {getGroqData('codeQualityInsights').weaknesses?.length > 0 && (
                         <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
-                          <p className="text-xs font-bold text-warning mb-2">⚠ Weaknesses</p>
-                          <ul className="space-y-1">
-                            {displayData.codeAnalysis.codeQualityInsights.weaknesses.slice(0, 3).map((w, i) => (
-                              <li key={i} className="text-xs text-textMuted">• {w}</li>
+                          <p className="text-xs font-bold text-warning mb-2 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3"/> Weaknesses
+                          </p>
+                          <ul className="space-y-1.5">
+                            {getGroqData('codeQualityInsights').weaknesses.slice(0, 3).map((w, i) => (
+                              <li key={i} className="text-xs text-textMuted leading-relaxed">• {w}</li>
                             ))}
                           </ul>
                         </div>
@@ -256,26 +262,26 @@ const Dashboard = () => {
                 )}
 
                 {/* Security Concerns */}
-                {displayData.codeAnalysis.securityConcerns?.length > 0 && (
+                {getGroqData('securityConcerns')?.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-danger mb-3 flex items-center gap-2">
                       <Shield className="w-4 h-4"/> Security Concerns
                     </h4>
                     <div className="space-y-2">
-                      {displayData.codeAnalysis.securityConcerns.slice(0, 3).map((concern, i) => (
-                        <div key={i} className="bg-danger/10 border border-danger/20 rounded-lg p-3">
+                      {getGroqData('securityConcerns').slice(0, 4).map((concern, i) => (
+                        <div key={i} className="bg-danger/10 border border-danger/20 rounded-lg p-3 hover:border-danger/40 transition">
                           <div className="flex items-start justify-between mb-1">
                             <p className="text-sm font-medium text-white">{concern.issue}</p>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                               concern.severity === 'HIGH' ? 'bg-danger text-white' :
-                              concern.severity === 'MEDIUM' ? 'bg-warning text-white' :
+                              concern.severity === 'MEDIUM' ? 'bg-warning text-black' :
                               'bg-gray-600 text-white'
                             }`}>
                               {concern.severity}
                             </span>
                           </div>
-                          <p className="text-xs text-textMuted mb-1">{concern.recommendation}</p>
-                          <p className="text-[10px] text-primary font-mono">📁 {concern.file}</p>
+                          <p className="text-xs text-textMuted mb-2">{concern.recommendation}</p>
+                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded">📁 {concern.file}</p>
                         </div>
                       ))}
                     </div>
@@ -283,28 +289,86 @@ const Dashboard = () => {
                 )}
 
                 {/* Performance Issues */}
-                {displayData.codeAnalysis.performanceIssues?.length > 0 && (
-                  <div>
+                {getGroqData('performanceIssues')?.length > 0 && (
+                  <div className="mb-6">
                     <h4 className="text-sm font-semibold text-warning mb-3 flex items-center gap-2">
                       <Zap className="w-4 h-4"/> Performance Issues
                     </h4>
                     <div className="space-y-2">
-                      {displayData.codeAnalysis.performanceIssues.slice(0, 3).map((issue, i) => (
-                        <div key={i} className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+                      {getGroqData('performanceIssues').slice(0, 4).map((issue, i) => (
+                        <div key={i} className="bg-warning/10 border border-warning/20 rounded-lg p-3 hover:border-warning/40 transition">
                           <div className="flex items-start justify-between mb-1">
                             <p className="text-sm font-medium text-white">{issue.issue}</p>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                               issue.impact === 'HIGH' ? 'bg-danger text-white' :
-                              issue.impact === 'MEDIUM' ? 'bg-warning text-white' :
+                              issue.impact === 'MEDIUM' ? 'bg-warning text-black' :
                               'bg-gray-600 text-white'
                             }`}>
                               {issue.impact}
                             </span>
                           </div>
-                          <p className="text-xs text-textMuted mb-1">{issue.solution}</p>
-                          <p className="text-[10px] text-primary font-mono">📁 {issue.file}</p>
+                          <p className="text-xs text-textMuted mb-2">{issue.solution}</p>
+                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded">📁 {issue.file}</p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Architecture Patterns */}
+                {getGroqData('architecturePatterns') && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
+                      <Award className="w-4 h-4"/> Architecture Patterns
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                        <p className="text-xs font-bold text-primary mb-2">✓ Detected</p>
+                        <div className="flex flex-wrap gap-2">
+                          {getGroqData('architecturePatterns').detected?.slice(0, 4).map((p, i) => (
+                            <span key={i} className="text-[10px] px-2 py-1 bg-primary/20 text-primary rounded-full font-medium">{p}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="bg-surface/50 border border-white/5 rounded-lg p-4">
+                        <p className="text-xs font-bold text-textMuted mb-2">💡 Recommendations</p>
+                        <ul className="space-y-1">
+                          {getGroqData('architecturePatterns').recommendations?.slice(0, 2).map((r, i) => (
+                            <li key={i} className="text-xs text-textMuted">• {r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Best Practices */}
+                {getGroqData('bestPractices') && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-success mb-3 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4"/> Best Practices
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {getGroqData('bestPractices').followed?.length > 0 && (
+                        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+                          <p className="text-xs font-bold text-success mb-2">✓ Followed</p>
+                          <ul className="space-y-1">
+                            {getGroqData('bestPractices').followed.slice(0, 3).map((p, i) => (
+                              <li key={i} className="text-xs text-textMuted">• {p}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {getGroqData('bestPractices').missing?.length > 0 && (
+                        <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+                          <p className="text-xs font-bold text-warning mb-2">⚠ Missing</p>
+                          <ul className="space-y-1">
+                            {getGroqData('bestPractices').missing.slice(0, 3).map((p, i) => (
+                              <li key={i} className="text-xs text-textMuted">• {p}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -367,6 +431,6 @@ const Dashboard = () => {
       </main>
     </div>
   );
-}; 
+};
 
 export default Dashboard;
