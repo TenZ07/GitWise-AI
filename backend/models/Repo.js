@@ -17,7 +17,7 @@ const repoSchema = new mongoose.Schema({
   recentCommits: Array,
   fileTree: Array,
   
-  // AI Generated Fields
+  // ✅ AI Generated Fields (Standard)
   functionalSummary: String,
   targetAudienceAndUse: String,
   aiSummary: String,
@@ -28,7 +28,36 @@ const repoSchema = new mongoose.Schema({
   architectureAssessment: Object,
   scoreJustification: String,
   
-  // 🆕 Code Analysis Fields (Groq AI)
+  // ✅ GROQ DEEP ANALYSIS FIELDS (Root Level for Easy Access)
+  codeQualityInsights: {
+    strengths: [String],
+    weaknesses: [String],
+    codeSmells: [String]
+  },
+  securityConcerns: [{
+    issue: String,
+    severity: String, // HIGH | MEDIUM | LOW
+    file: String,
+    recommendation: String
+  }],
+  architecturePatterns: {
+    detected: [String],
+    recommendations: [String]
+  },
+  performanceIssues: [{
+    issue: String,
+    file: String,
+    impact: String, // HIGH | MEDIUM | LOW
+    solution: String
+  }],
+  bestPractices: {
+    followed: [String],
+    missing: [String]
+  },
+  technicalDebt: [String],
+  filesAnalyzed: Number,
+  
+  // ✅ Legacy Field (for backward compatibility)
   codeAnalysis: {
     analyzedFiles: [String],
     codeQualityInsights: {

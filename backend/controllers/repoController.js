@@ -1,6 +1,6 @@
 const Repo = require('../models/Repo');
-const { fetchRepoData } = require('../services/githubService');
-const { analyzeRepoWithAI } = require('../services/geminiService');
+const { fetchRepoData, fetchFileContent } = require('../services/githubService');
+const { identifyCriticalFiles, analyzeCodeWithGroq } = require('../services/groqService');
 
 exports.analyzeRepo = async (req, res) => {
   console.log('🚀 [CONTROLLER] 1. Function Entered');
@@ -15,7 +15,7 @@ exports.analyzeRepo = async (req, res) => {
       return res.status(400).json({ message: 'Valid Repository URL is required' });
     }
 
-    console.log(`🔍 [CONTROLLER] 4. Starting analysis for: ${repoUrl}`);
+    console.log(`🔍 [CONTROLLER] 4. Starting DEEP analysis for: ${repoUrl}`);
 
     // 5. Check Cache Logic
     const { force } = req.query;
@@ -63,26 +63,114 @@ exports.analyzeRepo = async (req, res) => {
       });
     }
 
-    // 14. Run AI Analysis
-    console.log('🤖 [CONTROLLER] 14. Calling AI Service...');
-    let aiAnalysis;
+    // 14. 🤖 GROQ STEP 1: Identify Critical Files
+    console.log('🤖 [CONTROLLER] 14. Groq: Identifying critical files...');
+    let criticalFiles;
     try {
-      aiAnalysis = await analyzeRepoWithAI(githubData);
-      console.log('✅ [CONTROLLER] 15. AI Analysis Received. Score:', aiAnalysis.codeHealthScore);
+      criticalFiles = await identifyCriticalFiles(githubData.fileTree, githubData.basicInfo);
+      console.log(`✅ [CONTROLLER] 15. Groq selected ${criticalFiles.length} critical files`);
+    } catch (error) {
+      console.error('⚠️ [CONTROLLER] Groq file selection failed, using fallback');
+      criticalFiles = githubData.fileTree
+        .filter(f => f.type === 'file' && f.path.match(/\.(js|ts|jsx|tsx|py)$/i))
+        .slice(0, 10)
+        .map(f => f.path);
+    }
+
+    // 16. Fetch Actual Code Content for Critical Files
+    console.log('📦 [CONTROLLER] 16. Fetching code contents for critical files...');
+    const fileContents = [];
+    for (const filePath of criticalFiles) {
+      try {
+        const file = await fetchFileContent(
+          githubData.basicInfo.owner,
+          githubData.basicInfo.repoName,
+          filePath,
+          githubData.basicInfo.defaultBranch
+        );
+        if (file && file.content) {
+          fileContents.push(file);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Could not fetch ${filePath}: ${error.message}`);
+      }
+    }
+    console.log(`✅ [CONTROLLER] 17. Fetched ${fileContents.length} file contents`);
+
+    // 18. 🤖 GROQ STEP 2: Deep Code Analysis
+    console.log('🤖 [CONTROLLER] 18. Groq: Analyzing actual CODE...');
+    let groqAnalysis;
+    try {
+      groqAnalysis = await analyzeCodeWithGroq(fileContents, githubData.basicInfo);
+      console.log('✅ [CONTROLLER] 19. Groq Code Analysis Complete');
     } catch (aiError) {
-      console.error('❌ [CONTROLLER] 16. AI Analysis Failed:', aiError.message);
-      // Fallback AI data so we don't crash
-      aiAnalysis = {
-        functionalSummary: "AI service unavailable.",
-        targetAudienceAndUse: "Could not generate use case.",
-        techStack: Object.keys(githubData.basicInfo.languages || {}),
-        codeHealthScore: 50,
-        improvements: ["Retry analysis later."]
+      console.error('❌ [CONTROLLER] 20. Groq Analysis Failed:', aiError.message);
+      // Fallback so we don't crash
+      groqAnalysis = {
+        codeQualityInsights: {
+          strengths: ['Code structure appears organized'],
+          weaknesses: ['Unable to perform deep analysis - API error'],
+          codeSmells: []
+        },
+        securityConcerns: [],
+        architecturePatterns: {
+          detected: ['Standard architecture'],
+          recommendations: ['Perform manual code review']
+        },
+        performanceIssues: [],
+        bestPractices: {
+          followed: [],
+          missing: []
+        },
+        technicalDebt: ['Code analysis service temporarily unavailable']
       };
     }
 
-    // 17. Save to DB
-    console.log('💾 [CONTROLLER] 17. Saving to Database...');
+    // 21. Generate Summary from Groq Analysis
+    const functionalSummary = groqAnalysis.codeQualityInsights?.strengths?.[0] || 
+                              `This repository contains ${fileContents.length} analyzed files. ${githubData.basicInfo.description || ''}`;
+    
+    const targetAudienceAndUse = groqAnalysis.architecturePatterns?.detected?.[0] ?
+      `Built using ${groqAnalysis.architecturePatterns.detected.join(', ')} architecture. ${githubData.basicInfo.description || ''}` :
+      `A software project built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ')}`;
+
+    // 22. Format Improvements from ALL Groq analysis sections
+    const improvements = [
+      ...(groqAnalysis.codeQualityInsights?.weaknesses || []).map(w => ({
+        title: 'Code Quality',
+        description: w,
+        severity: 'MEDIUM'
+      })),
+      ...(groqAnalysis.securityConcerns || []).map(s => ({
+        title: 'Security',
+        description: s.issue,
+        file: s.file,
+        severity: s.severity
+      })),
+      ...(groqAnalysis.performanceIssues || []).map(p => ({
+        title: 'Performance',
+        description: p.issue,
+        file: p.file,
+        severity: p.impact
+      })),
+      ...(groqAnalysis.technicalDebt || []).map(t => ({
+        title: 'Technical Debt',
+        description: t,
+        severity: 'LOW'
+      }))
+    ].map(imp => `${imp.title}: ${imp.description} ${imp.file ? `(File: ${imp.file})` : ''}`).slice(0, 10);
+
+    // 23. Calculate Health Score based on Groq findings
+    const securityIssues = groqAnalysis.securityConcerns?.filter(s => s.severity === 'HIGH')?.length || 0;
+    const perfIssues = groqAnalysis.performanceIssues?.filter(p => p.impact === 'HIGH')?.length || 0;
+    const weaknesses = groqAnalysis.codeQualityInsights?.weaknesses?.length || 0;
+    
+    const codeHealthScore = Math.max(0, Math.min(100, 
+      100 - (securityIssues * 20) - (perfIssues * 10) - (weaknesses * 5)
+    ));
+
+    // 24. Save ALL Data to DB
+    console.log('💾 [CONTROLLER] 24. Saving to Database...');
     const repoData = {
       repoUrl,
       owner: githubData.basicInfo.owner,
@@ -94,14 +182,24 @@ exports.analyzeRepo = async (req, res) => {
       contributors: githubData.contributors,
       recentCommits: githubData.recentCommits,
       fileTree: githubData.fileTree,
-      functionalSummary: aiAnalysis.functionalSummary,
-      targetAudienceAndUse: aiAnalysis.targetAudienceAndUse,
-      techStack: aiAnalysis.techStack,
-      codeHealthScore: aiAnalysis.codeHealthScore,
-      improvements: aiAnalysis.improvements,
-      riskAssessment: aiAnalysis.riskAssessment,
-      architectureAssessment: aiAnalysis.architectureAssessment,
-      codeAnalysis: aiAnalysis.codeAnalysis // 🆕 Save Groq code analysis
+      
+      // ✅ Standard Fields
+      functionalSummary,
+      targetAudienceAndUse,
+      techStack: Object.keys(githubData.basicInfo.languages || {}),
+      codeHealthScore,
+      improvements,
+      
+      // ✅ GROQ DEEP ANALYSIS FIELDS (Save ALL of them!)
+      codeQualityInsights: groqAnalysis.codeQualityInsights,
+      securityConcerns: groqAnalysis.securityConcerns,
+      architecturePatterns: groqAnalysis.architecturePatterns,
+      performanceIssues: groqAnalysis.performanceIssues,
+      bestPractices: groqAnalysis.bestPractices,
+      technicalDebt: groqAnalysis.technicalDebt,
+      filesAnalyzed: fileContents.length,
+      
+      lastFetched: new Date()
     };
 
     const savedRepo = await Repo.findOneAndUpdate(
@@ -110,7 +208,7 @@ exports.analyzeRepo = async (req, res) => {
       { upsert: true, returnDocument: 'after', runValidators: true }
     );
 
-    console.log('✅ [CONTROLLER] 18. Analysis Complete & Saved.');
+    console.log('✅ [CONTROLLER] 25. Analysis Complete & Saved.');
     res.json({ 
       message: 'Repository analyzed successfully', 
       savedRepo,
