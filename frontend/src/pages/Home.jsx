@@ -1,189 +1,184 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Github, Search, Loader2, AlertCircle, Sparkles } from 'lucide-react';
-import { analyzeRepo } from '../services/api';
-import toast, { Toaster } from 'react-hot-toast';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Github, Loader2, Sparkles } from "lucide-react";
+import { analyzeRepo } from "../services/api";
+import toast, { Toaster } from "react-hot-toast";
 
 const Home = () => {
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    console.log('🏠 [Home] Submit triggered');
-    console.log('📝 Input URL:', url);
-
-    // 1. Validation
-    if (!url || typeof url !== 'string') {
-      toast.error('Please enter a repository URL');
+    if (!url || typeof url !== "string") {
+      toast.error("Enter a repository URL");
       return;
     }
 
     const cleanUrl = url.trim();
-    if (!cleanUrl.includes('github.com')) {
-      toast.error('Please enter a valid GitHub URL');
+
+    if (!cleanUrl.includes("github.com")) {
+      toast.error("Invalid GitHub repository");
       return;
     }
 
     setLoading(true);
+
     try {
-      console.log('📡 Sending request to analyze...', cleanUrl);
-      
-      // 2. API Call
       const result = await analyzeRepo(cleanUrl);
-      
-      console.log('✅ Full API Response:', result);
 
-      // 3. ✅ FIX: Extract data correctly (handles both savedRepo and existingRepo)
-      const repoData = result.savedRepo || result.existingRepo || result.data;
+      const repoData =
+        result.savedRepo || result.existingRepo || result.data;
 
-      if (!repoData) {
-        console.error('❌ No valid data found in response:', result);
-        throw new Error('No data returned from server');
-      }
+      if (!repoData) throw new Error("No data returned");
 
-      // 4. Success Feedback
-      toast.success(result.cached ? 'Loaded from cache! ⚡' : 'Analysis complete! 🎉');
+      toast.success(
+        result.cached ? "Loaded from cache ⚡" : "Repository analyzed"
+      );
 
-      // 5. Navigate to Dashboard
-      console.log('🚀 Navigating to dashboard...', repoData.owner, repoData.repoName);
-      navigate('/dashboard', { state: { repoData } });
-
+      navigate("/dashboard", { state: { repoData } });
     } catch (error) {
-      console.error('💥 Home Page Error:', error);
-      
-      let errorMsg = 'Failed to analyze repository';
-      
-      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-        errorMsg = 'Cannot connect to backend. Is the server running?';
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
+      let msg = "Failed to analyze repository";
 
-      toast.error(errorMsg);
+      if (error.code === "ERR_NETWORK")
+        msg = "Backend server not reachable";
+
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-bg text-textMain flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center relative overflow-hidden">
+
       <Toaster position="top-center" />
-      
-      {/* Floating GitHub Button */}
-      <a 
-        href="https://github.com/TenZ07" 
-        target="_blank" 
+
+      {/* Neural Grid Background */}
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
+        <div className="w-full h-full bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
+      </div>
+
+      {/* AI Glow Core */}
+      <div className="absolute w-[600px] h-[600px] bg-primary/20 blur-[200px] rounded-full top-[-20%]" />
+      <div className="absolute w-[600px] h-[600px] bg-purple-500/20 blur-[200px] rounded-full bottom-[-20%]" />
+
+      {/* GitHub Floating Button */}
+      <a
+        href="https://github.com/TenZ07"
+        target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-8 left-8 z-50 group"
       >
         <div className="relative">
-          {/* Animated glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-500 to-accent rounded-full blur-lg opacity-60 group-hover:opacity-100 animate-pulse transition-opacity duration-300"></div>
-          
-          {/* Button */}
-          <div className="relative flex items-center gap-3 px-6 py-3 bg-surface border border-white/10 rounded-full shadow-2xl hover:shadow-primary/50 transition-all duration-300 group-hover:scale-110 group-hover:border-primary/50">
-            <Github className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
+          <div className="absolute inset-0 blur-lg bg-gradient-to-r from-primary to-purple-500 opacity-60 rounded-full group-hover:opacity-100 transition" />
+
+          <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-white/5 border border-white/10 backdrop-blur-lg group-hover:scale-110 transition">
+            <Github className="w-6 h-6 text-white" />
           </div>
         </div>
       </a>
-      
-      {/* Background Glow Effects */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-2xl z-10 space-y-8 text-center animate-fade-in">
-        
-        {/* Header */}
-        <div className="space-y-4">
-          <div className="inline-flex items-center justify-center p-4 bg-surface border border-white/10 rounded-2xl shadow-xl mb-4 relative group">
-            <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition duration-500"></div>
-            <Github className="w-12 h-12 text-primary relative z-10" />
+      {/* Main UI */}
+      <div className="relative z-10 text-center max-w-2xl space-y-12 px-6">
+
+        {/* Title */}
+        <div className="space-y-6">
+
+          <div className="inline-flex items-center gap-2 px-4 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-gray-400">
+            <Sparkles size={14} />
+            AI Repository Intelligence
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            GitWise <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">AI</span>
+
+          <h1 className="text-6xl font-bold tracking-tight">
+            GitWise
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400">
+              {" "}AI
+            </span>
           </h1>
-          <p className="text-lg text-textMuted max-w-lg mx-auto leading-relaxed">
-            Get instant AI-powered insights, architecture analysis, and code health scores for any GitHub repository.
+
+          <p className="text-gray-400 text-lg max-w-lg mx-auto">
+            Understand any GitHub repository instantly with AI-powered
+            architecture analysis and code intelligence.
           </p>
+
         </div>
 
-        {/* Input Form */}
-        <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto relative group">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-500 to-accent rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-          
-          <div className="relative flex items-center bg-surface border border-white/10 rounded-xl overflow-hidden shadow-2xl">
-            <div className="pl-4 text-textMuted">
-              <Search className="w-5 h-5" />
-            </div>
-            
+        {/* Command Input */}
+        <form
+          onSubmit={handleSubmit}
+          className="relative group"
+        >
+
+          <div className="absolute inset-0 bg-gradient-to-r from-primary to-purple-500 blur opacity-20 rounded-2xl group-hover:opacity-40 transition" />
+
+          <div className="relative flex items-center bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+
             <input
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://github.com/username/repository"
-              className="w-full bg-transparent border-none outline-none text-white px-4 py-4 text-base placeholder:text-textMuted/50 focus:placeholder:text-textMuted/80 transition"
+              placeholder="paste github repository url..."
+              className="flex-1 px-6 py-5 bg-transparent outline-none text-lg placeholder:text-gray-500"
               disabled={loading}
             />
-            
+
             <button
               type="submit"
               disabled={loading || !url.trim()}
-              className={`m-2 px-6 py-2.5 font-medium rounded-lg transition-all duration-300 flex items-center gap-2 relative overflow-hidden ${
-                loading 
-                  ? 'bg-gray-700 text-gray-300 cursor-not-allowed' 
-                  : 'bg-primary hover:bg-primaryHover text-white shadow-lg shadow-primary/25 hover:shadow-primary/40'
-              }`}
+              className="px-8 py-5 bg-primary text-white font-medium hover:bg-primaryHover transition flex items-center gap-2"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="relative z-10">Analyzing...</span>
-                  {/* Pulsing effect behind spinner */}
-                  <div className="absolute inset-0 bg-white/10 animate-pulse rounded-lg"></div>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  scanning
                 </>
               ) : (
                 <>
-                  <span className="relative z-10">Analyze</span>
-                  <Sparkles className="w-4 h-4 relative z-10" />
+                  analyze
+                  <Sparkles size={18}/>
                 </>
               )}
             </button>
+
           </div>
+
         </form>
 
-        {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 text-left">
-          <FeatureCard 
-            icon={<AlertCircle className="w-6 h-6 text-primary" />}
-            title="Code Health Score"
-            desc="Get an instant 0-100 score based on structure, maintainability, and best practices."
-          />
-          <FeatureCard 
-            icon={<Github className="w-6 h-6 text-accent" />}
-            title="Deep Architecture"
-            desc="Understand the tech stack, file structure, and design patterns used in the project."
-          />
-          <FeatureCard 
-            icon={<Search className="w-6 h-6 text-success" />}
-            title="AI Improvements"
-            desc="Receive 5 specific, actionable suggestions to refactor and improve your codebase."
-          />
+        {/* AI Scan Status */}
+        {loading && (
+          <div className="text-sm text-primary animate-pulse space-y-1">
+
+            <p>scanning repository structure...</p>
+            <p>reading source files...</p>
+            <p>generating architecture insights...</p>
+
+          </div>
+        )}
+
+        {/* Minimal Feature Row */}
+        <div className="flex justify-center gap-10 text-sm text-gray-400 pt-6">
+
+          <span className="hover:text-white transition">
+            architecture analysis
+          </span>
+
+          <span className="hover:text-white transition">
+            code health score
+          </span>
+
+          <span className="hover:text-white transition">
+            AI improvements
+          </span>
+
         </div>
+
       </div>
+
     </div>
   );
 };
-
-// Simple Feature Card Component
-const FeatureCard = ({ icon, title, desc }) => (
-  <div className="p-6 bg-surface/30 border border-white/5 rounded-2xl backdrop-blur-sm hover:border-primary/30 hover:bg-surface/50 transition duration-300 group">
-    <div className="mb-4 p-3 bg-surface rounded-lg inline-block group-hover:scale-110 transition duration-300">{icon}</div>
-    <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-    <p className="text-sm text-textMuted leading-relaxed">{desc}</p>
-  </div>
-);
 
 export default Home;
