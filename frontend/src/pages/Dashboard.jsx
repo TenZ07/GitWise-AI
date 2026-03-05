@@ -1,13 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Github, Star, GitFork, Users, FileCode, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';
-import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
+import { ArrowLeft, Github, Star, GitFork, Users, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { analyzeRepo } from '../services/api';
 import ChatBox from '../components/ChatBox';
 import DashboardCard from "../components/ui/DashboardCard";
-
+import { motion } from "framer-motion";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -97,6 +96,15 @@ const Dashboard = () => {
     return displayData[field] || displayData.codeAnalysis?.[field];
   };
 
+  const containerVariants = {
+  hidden: {},
+  show: {
+    transition: {
+      staggerChildren: 0.12
+    }
+  }
+};
+
   return (
     <div className="min-h-screen bg-bg text-textMain pb-20">
       <Toaster position="top-center" />
@@ -144,7 +152,12 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* LEFT COLUMN: Analysis (8 cols) */}
-          <div className={`lg:col-span-8 space-y-6 ${activeTab === 'chat' ? 'hidden lg:block' : 'block'}`}>
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className={`lg:col-span-8 space-y-6 ${activeTab === 'chat' ? 'hidden lg:block' : 'block'}`}
+          >
             
             {/* Top Row: Profile + Score + Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -173,47 +186,47 @@ const Dashboard = () => {
 
                 {/* Health Score Card */}
                 <DashboardCard className="flex flex-col items-center justify-center relative overflow-hidden">
-                  {/* subtle glow behind the circle */}
-                  <div
-                    className="absolute inset-0 opacity-20 blur-2xl"
-                    style={{ background: `radial-gradient(circle at center, ${scoreColor} 0%, transparent 60%)` }}
+                <div
+                  className="absolute inset-0 opacity-20 blur-2xl"
+                  style={{ background: `radial-gradient(circle at center, ${scoreColor} 0%, transparent 60%)` }}
+                />
+
+                <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3 z-10">
+                  Health Score
+                </h3>
+
+                <div className="w-28 h-28 relative z-10">
+                  <CircularProgressbar
+                    value={codeHealthScore}
+                    text={`${codeHealthScore}`}
+                    styles={buildStyles({
+                      pathColor: scoreColor,
+                      textColor: "#fff",
+                      trailColor: "#2d2d44",
+                      textSize: "26px",
+                      strokeWidth: 10,
+                      pathTransitionDuration: 1.2
+                    })}
                   />
+                </div>
 
-                  <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3 z-10">
-                    Health Score
-                  </h3>
+                <span
+                  className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
+                    codeHealthScore >= 80
+                      ? "bg-green-500/10 text-green-400 border-green-500/30"
+                      : codeHealthScore >= 50
+                      ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                      : "bg-red-500/10 text-red-400 border-red-500/30"
+                  }`}
+                >
+                  {codeHealthScore >= 80
+                    ? "Excellent"
+                    : codeHealthScore >= 50
+                    ? "Needs Optimization"
+                    : "High Risk"}
+                </span>
 
-                  <div className="w-28 h-28 relative z-10">
-                    <CircularProgressbar
-                      value={codeHealthScore}
-                      text={`${codeHealthScore}`}
-                      styles={buildStyles({
-                        pathColor: scoreColor,
-                        textColor: "#fff",
-                        trailColor: "#2d2d44",
-                        textSize: "26px",
-                        strokeWidth: 10,
-                      })}
-                  />
-  </div>
-
-  {/* status badge */}
-  <span
-    className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
-      codeHealthScore >= 80
-        ? "bg-green-500/10 text-green-400 border-green-500/30"
-        : codeHealthScore >= 50
-        ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
-        : "bg-red-500/10 text-red-400 border-red-500/30"
-    }`}
-  >
-    {codeHealthScore >= 80
-      ? "Excellent"
-      : codeHealthScore >= 50
-      ? "Needs Optimization"
-      : "High Risk"}
-  </span>
-</DashboardCard>
+              </DashboardCard>
               </div>
 
               {/* Summary Text */}
@@ -415,9 +428,13 @@ const Dashboard = () => {
                       <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
                         <p className="text-xs font-bold text-primary mb-2">✓ Detected</p>
                         <div className="flex flex-wrap gap-2">
+                          <ul className="space-y-1">
                           {getGroqData('architecturePatterns').detected?.slice(0, 4).map((p, i) => (
-                            <span key={i} className="text-[10px] px-2 py-1 bg-primary/20 text-primary rounded-full font-medium">{p}</span>
+                            <li key={i} className="text-xs text-textMuted">
+                              • {p}
+                            </li>
                           ))}
+                        </ul>
                         </div>
                       </div>
                       <div className="bg-surface/50 border border-white/5 rounded-lg p-4">
@@ -508,7 +525,7 @@ const Dashboard = () => {
               </DashboardCard>
             </div>
 
-          </div>
+          </motion.div>
 
           {/* RIGHT COLUMN: Chat (4 cols) */}
           <div className={`lg:col-span-4 ${activeTab === 'analysis' ? 'hidden lg:block' : 'block'}`}>

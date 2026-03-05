@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 import ReactMarkdown from 'react-markdown';
+import { motion } from "framer-motion";
 
 const ChatBox = ({ repoUrl }) => {
   const [messages, setMessages] = useState([
@@ -71,8 +72,11 @@ const ChatBox = ({ repoUrl }) => {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {messages.map((msg, idx) => (
-          <div 
-            key={idx} 
+          <motion.div
+            key={idx}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
             className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
             {/* Avatar */}
@@ -106,17 +110,13 @@ const ChatBox = ({ repoUrl }) => {
                 {msg.content}
               </ReactMarkdown>
             </div>
-          </div>
+          </motion.div>
         ))}
         
         {loading && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-              <Loader2 size={16} className="animate-spin text-white" />
-            </div>
-            <div className="bg-bg/50 border border-white/5 p-4 rounded-2xl rounded-tl-none text-textMuted text-sm">
-              Analyzing repository context...
-            </div>
+          <div className="bg-bg/50 border border-white/5 p-4 rounded-2xl rounded-tl-none text-textMuted text-sm flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" />
+            GitWise AI is analyzing the repository...
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -127,7 +127,11 @@ const ChatBox = ({ repoUrl }) => {
         <div className="relative flex items-end gap-2 bg-bg/50 border border-white/10 rounded-xl p-2 focus-within:border-primary/50 transition-colors">
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Ask about risks, architecture, or files..."
             rows={1}
