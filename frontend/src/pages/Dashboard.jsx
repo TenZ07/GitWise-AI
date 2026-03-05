@@ -6,6 +6,8 @@ import { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { analyzeRepo } from '../services/api';
 import ChatBox from '../components/ChatBox';
+import DashboardCard from "../components/ui/DashboardCard";
+
 
 const Dashboard = () => {
   const location = useLocation();
@@ -128,8 +130,6 @@ const Dashboard = () => {
             <button onClick={handleReanalyze} disabled={isReanalyzing} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isReanalyzing ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-white'}`}>
               <RefreshCw className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} />{isReanalyzing ? 'Analyzing...' : 'Re-analyze'}
             </button>
-            <div className="flex items-center gap-2"><Star className="w-4 h-4 text-warning fill-warning" /><span>{stars}</span></div>
-            <div className="flex items-center gap-2"><GitFork className="w-4 h-4 text-accent" /><span>{forks}</span></div>
           </div>
         </div>
       </nav>
@@ -151,12 +151,13 @@ const Dashboard = () => {
               {/* Left Column: Profile + Health Score */}
               <div className="flex flex-col gap-6">
                 {/* Profile Card */}
-                <a 
-                  href={`https://github.com/${owner}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="glass rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center bg-gradient-to-br from-surface/50 to-surface/30 hover:border-primary/30 transition-all duration-300 group cursor-pointer"
-                >
+                <DashboardCard className="flex flex-col items-center justify-center group cursor-pointer">
+                  <a 
+                    href={`https://github.com/${owner}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center"
+                  >
                   <div className="relative mb-3">
                     <div className="absolute inset-0 bg-primary/30 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <img 
@@ -167,20 +168,56 @@ const Dashboard = () => {
                   </div>
                   <h3 className="text-sm font-bold text-white mb-1">{owner}</h3>
                   <p className="text-xs text-primary group-hover:text-accent transition-colors duration-300">View Profile</p>
-                </a>
+                  </a>
+                </DashboardCard>
 
                 {/* Health Score Card */}
-                <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center bg-gradient-to-br from-surface/50 to-surface/30">
-                  <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3">Health Score</h3>
-                  <div className="w-24 h-24 relative">
-                    <CircularProgressbar value={codeHealthScore} text={`${codeHealthScore}`} styles={buildStyles({ pathColor: scoreColor, textColor: '#fff', trailColor: '#2d2d44', textSize: '28px', strokeWidth: 12 })} />
-                  </div>
-                  <p className="mt-2 text-xs font-medium text-textMuted">{codeHealthScore >= 80 ? "Excellent" : codeHealthScore >= 50 ? "Good" : "Needs Work"}</p>
-                </div>
+                <DashboardCard className="flex flex-col items-center justify-center relative overflow-hidden">
+                  {/* subtle glow behind the circle */}
+                  <div
+                    className="absolute inset-0 opacity-20 blur-2xl"
+                    style={{ background: `radial-gradient(circle at center, ${scoreColor} 0%, transparent 60%)` }}
+                  />
+
+                  <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3 z-10">
+                    Health Score
+                  </h3>
+
+                  <div className="w-28 h-28 relative z-10">
+                    <CircularProgressbar
+                      value={codeHealthScore}
+                      text={`${codeHealthScore}`}
+                      styles={buildStyles({
+                        pathColor: scoreColor,
+                        textColor: "#fff",
+                        trailColor: "#2d2d44",
+                        textSize: "26px",
+                        strokeWidth: 10,
+                      })}
+                  />
+  </div>
+
+  {/* status badge */}
+  <span
+    className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
+      codeHealthScore >= 80
+        ? "bg-green-500/10 text-green-400 border-green-500/30"
+        : codeHealthScore >= 50
+        ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+        : "bg-red-500/10 text-red-400 border-red-500/30"
+    }`}
+  >
+    {codeHealthScore >= 80
+      ? "Excellent"
+      : codeHealthScore >= 50
+      ? "Needs Optimization"
+      : "High Risk"}
+  </span>
+</DashboardCard>
               </div>
 
               {/* Summary Text */}
-              <div className="md:col-span-2 glass rounded-2xl p-6 border border-white/5 space-y-4">
+              <DashboardCard className="md:col-span-2 space-y-4">
                 <div>
                   <h3 className="text-xs font-semibold text-accent uppercase tracking-wider mb-1">What This Repo Does</h3>
                   <p className="text-sm text-textMain leading-relaxed">{getFunctionalSummary()}</p>
@@ -194,29 +231,82 @@ const Dashboard = () => {
                     <span key={i} className="px-2 py-1 bg-surface border border-primary/20 rounded-md text-[10px] text-primary font-mono">{tech}</span>
                   ))}
                 </div>
+              </DashboardCard>
+              {/* Repository Stats */}
               </div>
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
+                <DashboardCard className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+                    <Star className="w-5 h-5 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-textMuted">Stars</p>
+                    <p className="text-xl font-bold text-white">{stars}</p>
+                  </div>
+                </DashboardCard>
+
+                <DashboardCard className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+                    <GitFork className="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-textMuted">Forks</p>
+                    <p className="text-xl font-bold text-white">{forks}</p>
+                  </div>
+                </DashboardCard>
+
+                <DashboardCard className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                    <Users className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-textMuted">Contributors</p>
+                    <p className="text-xl font-bold text-white">
+                      {contributors?.length || 0}
+                    </p>
+                  </div>
+                </DashboardCard>
+
+
+            </div>
+            
             {/* Improvements Grid */}
-            <div className="glass rounded-2xl p-6 border border-white/5">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-warning"/> Key Improvements</h3>
+            <DashboardCard>
+              <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-warning" />
+                Key Improvements
+              </h3>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {improvements && improvements.length > 0 ? (
                   improvements.slice(0, 6).map((imp, i) => (
-                    <div key={i} className="flex gap-3 p-4 bg-surface/40 rounded-xl border border-white/5 hover:border-primary/30 transition duration-300">
-                      <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-textMuted leading-relaxed">{imp}</p>
+                    <div
+                      key={i}
+                      className="group p-4 rounded-xl border border-white/5 bg-surface/40 hover:border-primary/40 hover:bg-surface/60 transition-all duration-300"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <CheckCircle className="w-4 h-4 text-success mt-1 flex-shrink-0" />
+
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 font-medium">
+                          SUGGESTION
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-textMuted leading-relaxed group-hover:text-textMain transition">
+                        {imp}
+                      </p>
                     </div>
                   ))
                 ) : (
                   <p className="text-textMuted col-span-2">No improvements generated.</p>
                 )}
               </div>
-            </div>
+            </DashboardCard>
 
             {/* 🆕 Deep Code Analysis Section (Groq AI) - UPDATED */}
             {(getGroqData('codeQualityInsights') || getGroqData('securityConcerns') || getGroqData('performanceIssues')) && (
-              <div className="glass rounded-2xl p-6 border border-white/5">
+              <DashboardCard>
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold flex items-center gap-2">
                     <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
@@ -372,13 +462,13 @@ const Dashboard = () => {
                     </div>
                   </div>
                 )}
-              </div>
+              </DashboardCard>
             )}
 
             {/* Commits & Contributors Split */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Recent Commits */}
-              <div className="glass rounded-2xl p-6 border border-white/5">
+              <DashboardCard>
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Terminal className="w-5 h-5 text-accent"/> Recent Activity</h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {recentCommits && recentCommits.length > 0 ? (
@@ -396,10 +486,10 @@ const Dashboard = () => {
                     ))
                   ) : <p className="text-textMuted text-sm">No commits found.</p>}
                 </div>
-              </div>
+              </DashboardCard>
 
               {/* Top Contributors */}
-              <div className="glass rounded-2xl p-6 border border-white/5">
+              <DashboardCard>
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Trophy className="w-5 h-5 text-warning"/> Top Contributors</h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {contributors && contributors.length > 0 ? (
@@ -415,7 +505,7 @@ const Dashboard = () => {
                     ))
                   ) : <p className="text-textMuted text-sm">No contributors found.</p>}
                 </div>
-              </div>
+              </DashboardCard>
             </div>
 
           </div>
