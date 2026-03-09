@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, AlertCircle, FileWarning, Shield, Key } from 'lucide-react';
+import { Send, Bot, User, Loader2, FileWarning, Shield, Key } from 'lucide-react';
 import api from '../services/api';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // ✅ For table support
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { motion } from "framer-motion";
@@ -58,7 +59,27 @@ const ChatBox = ({ repoUrl }) => {
     }
   };
 
-  // ✅ Custom Markdown Components for Better Formatting
+  // ✅ Clean up malformed markdown from AI response
+  const cleanMarkdown = (text) => {
+    if (!text) return '';
+    
+    return text
+      // Fix malformed table separators (---||| → |---|)
+      .replace(/\|-+\|+/g, '|---|')
+      .replace(/\|-\|/g, '|---|')
+      .replace(/\|{2,}/g, '|')
+      // Fix extra pipes at end of lines
+      .replace(/\|\s*$/gm, '|')
+      // Fix missing pipes at start of table rows
+      .replace(/^\s*([^|].*\|)/gm, '|$1')
+      // Clean up extra backticks
+      .replace(/`{4,}/g, '```')
+      // Ensure proper spacing in tables
+      .replace(/\|(\w)/g, '| $1')
+      .replace(/(\w)\|/g, '$1 |');
+  };
+
+  // ✅ Custom Markdown Components
   const markdownComponents = {
     // Code Blocks with Syntax Highlighting
     code({ node, inline, className, children, ...props }) {
@@ -80,16 +101,16 @@ const ChatBox = ({ repoUrl }) => {
           {String(children).replace(/\n$/, '')}
         </SyntaxHighlighter>
       ) : (
-        <code className="bg-black/40 px-2 py-0.5 rounded text-xs font-mono text-primary border border-primary/20" {...props}>
+        <code className="bg-black/40 px-2 py-0.5 rounded text-xs font-mono text-primary border border-primary/20">
           {children}
         </code>
       );
     },
 
-    // Tables with Better Styling
+    // Tables with Proper Styling
     table({ children }) {
       return (
-        <div className="overflow-x-auto my-4">
+        <div className="overflow-x-auto my-4 rounded-lg border border-primary/20">
           <table className="w-full text-left border-collapse">
             {children}
           </table>
@@ -106,16 +127,16 @@ const ChatBox = ({ repoUrl }) => {
     },
 
     tbody({ children }) {
-      return <tbody className="divide-y divide-white/5">{children}</tbody>;
+      return <tbody className="divide-y divide-white/5 bg-bg/30">{children}</tbody>;
     },
 
     tr({ children }) {
-      return <tr className="hover:bg-white/5 transition">{children}</tr>;
+      return <tr className="hover:bg-primary/5 transition">{children}</tr>;
     },
 
     th({ children }) {
       return (
-        <th className="px-4 py-3 text-xs font-semibold text-primary uppercase tracking-wider">
+        <th className="px-4 py-3 text-xs font-semibold text-primary uppercase tracking-wider border-r border-white/5 last:border-none">
           {children}
         </th>
       );
@@ -123,7 +144,7 @@ const ChatBox = ({ repoUrl }) => {
 
     td({ children }) {
       return (
-        <td className="px-4 py-3 text-sm text-textMuted">
+        <td className="px-4 py-3 text-sm text-textMuted border-r border-white/5 last:border-none">
           {children}
         </td>
       );
@@ -131,23 +152,23 @@ const ChatBox = ({ repoUrl }) => {
 
     // Better List Styling
     ul({ children }) {
-      return <ul className="list-disc list-inside space-y-1.5 my-3 text-textMuted">{children}</ul>;
+      return <ul className="list-disc list-inside space-y-1.5 my-3 text-textMuted pl-2">{children}</ul>;
     },
 
     ol({ children }) {
-      return <ol className="list-decimal list-inside space-y-1.5 my-3 text-textMuted">{children}</ol>;
+      return <ol className="list-decimal list-inside space-y-1.5 my-3 text-textMuted pl-2">{children}</ol>;
     },
 
     li({ children }) {
-      return <li className="pl-1">{children}</li>;
+      return <li className="pl-1 leading-relaxed">{children}</li>;
     },
 
     // Better Heading Styling
     h1({ children }) {
-      return <h1 className="text-lg font-bold text-white mt-4 mb-2">{children}</h1>;
+      return <h1 className="text-lg font-bold text-white mt-4 mb-2 flex items-center gap-2">{children}</h1>;
     },
     h2({ children }) {
-      return <h2 className="text-base font-semibold text-primary mt-3 mb-2">{children}</h2>;
+      return <h2 className="text-base font-semibold text-primary mt-3 mb-2 flex items-center gap-2">{children}</h2>;
     },
     h3({ children }) {
       return <h3 className="text-sm font-semibold text-accent mt-2 mb-1">{children}</h3>;
@@ -180,6 +201,11 @@ const ChatBox = ({ repoUrl }) => {
         </blockquote>
       );
     },
+
+    // Strong/Bold Text
+    strong({ children }) {
+      return <strong className="text-white font-semibold">{children}</strong>;
+    },
   };
 
   return (
@@ -197,33 +223,40 @@ const ChatBox = ({ repoUrl }) => {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {messages.map((msg, idx) => (
-          <motion.div
-            key={idx}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-          >
-            {/* Avatar */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              msg.role === 'user' ? 'bg-primary' : 'bg-accent'
-            }`}>
-              {msg.role === 'user' ? <User size={16} className="text-bg" /> : <Bot size={16} className="text-bg" />}
-            </div>
+        {messages.map((msg, idx) => {
+          const cleanedContent = cleanMarkdown(msg.content);
+          
+          return (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            >
+              {/* Avatar */}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                msg.role === 'user' ? 'bg-primary' : 'bg-accent'
+              }`}>
+                {msg.role === 'user' ? <User size={16} className="text-bg" /> : <Bot size={16} className="text-bg" />}
+              </div>
 
-            {/* Bubble */}
-            <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed shadow-lg overflow-hidden ${
-              msg.role === 'user' 
-                ? 'bg-primary/20 text-white border border-primary/30 rounded-tr-none' 
-                : 'bg-bg/50 text-textMuted border border-white/5 rounded-tl-none'
-            }`}>
-              <ReactMarkdown components={markdownComponents}>
-                {msg.content}
-              </ReactMarkdown>
-            </div>
-          </motion.div>
-        ))}
+              {/* Bubble */}
+              <div className={`max-w-[92%] p-4 rounded-2xl text-sm leading-relaxed shadow-lg overflow-hidden ${
+                msg.role === 'user' 
+                  ? 'bg-primary/20 text-white border border-primary/30 rounded-tr-none' 
+                  : 'bg-bg/50 text-textMuted border border-white/5 rounded-tl-none'
+              }`}>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]} // ✅ Enable GitHub Flavored Markdown (tables!)
+                  components={markdownComponents}
+                >
+                  {cleanedContent}
+                </ReactMarkdown>
+              </div>
+            </motion.div>
+          );
+        })}
         
         {loading && (
           <motion.div 
