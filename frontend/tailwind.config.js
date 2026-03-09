@@ -1,3 +1,5 @@
+import theme from './src/config/theme.js';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -6,34 +8,46 @@ export default {
   ],
   theme: {
     extend: {
-      // ... your colors and animations from before ...
       colors: {
-        bg: '#0a0a0f',
-        surface: '#13131f',
-        primary: '#8b5cf6',
-        primaryHover: '#7c3aed',
-        accent: '#a78bfa',
-        textMain: '#ffffff',
-        textMuted: '#9ca3af',
-        success: '#10b981',
-        warning: '#f59e0b',
-        danger: '#ef4444',
+        // ✅ Pulls from central theme config
+        primary: theme.colors.primary,
+        primaryHover: theme.colors.primaryHover,
+        primaryLight: theme.colors.primaryLight,
+        accent: theme.colors.accent,
+        accentHover: theme.colors.accentHover,
+        secondary: theme.colors.secondary,
+        bg: theme.colors.bg,
+        surface: theme.colors.surface,
+        surfaceHover: theme.colors.surfaceHover,
+        surfaceBorder: theme.colors.surfaceBorder,
+        textMain: theme.colors.textMain,
+        textMuted: theme.colors.textMuted,
+        textDisabled: theme.colors.textDisabled,
+        success: theme.colors.success,
+        warning: theme.colors.warning,
+        danger: theme.colors.danger,
+        info: theme.colors.info,
+      },
+      backgroundImage: {
+        'gradient-primary': theme.colors.gradients.primary,
+        'gradient-neon': theme.colors.gradients.neon,
+        'gradient-dark': theme.colors.gradients.dark,
+      },
+      boxShadow: {
+        'neon': theme.colors.shadows.neon,
+        'glow': theme.colors.shadows.glow,
+        'card': theme.colors.shadows.card,
       },
       animation: {
-        'fade-in': 'fadeIn 0.5s ease-out',
-        'slide-up': 'slideUp 0.5s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glow': 'glow 2s ease-in-out infinite alternate',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        slideUp: {
-          '0%': { transform: 'translateY(20px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-      },
+        glow: {
+          '0%': { boxShadow: theme.colors.shadows.neon },
+          '100%': { boxShadow: theme.colors.shadows.glow },
+        }
+      }
     },
   },
   plugins: [],

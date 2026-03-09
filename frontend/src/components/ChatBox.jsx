@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, AlertCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, AlertCircle, FileWarning, Shield, Key } from 'lucide-react';
 import api from '../services/api';
 import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { motion } from "framer-motion";
 
 const ChatBox = ({ repoUrl }) => {
@@ -36,7 +38,6 @@ const ChatBox = ({ repoUrl }) => {
       const res = await api.post('/api/repo/chat', {
         repoUrl,
         message: userMsg.content
-        // Model is handled by backend env variable
       });
 
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.reply }]);
@@ -57,6 +58,130 @@ const ChatBox = ({ repoUrl }) => {
     }
   };
 
+  // ✅ Custom Markdown Components for Better Formatting
+  const markdownComponents = {
+    // Code Blocks with Syntax Highlighting
+    code({ node, inline, className, children, ...props }) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline ? (
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={match ? match[1] : 'javascript'}
+          PreTag="div"
+          customStyle={{
+            margin: '12px 0',
+            borderRadius: '8px',
+            fontSize: '12px',
+            background: 'rgba(0, 0, 0, 0.6)',
+            border: '1px solid rgba(152, 251, 203, 0.2)',
+          }}
+          {...props}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      ) : (
+        <code className="bg-black/40 px-2 py-0.5 rounded text-xs font-mono text-primary border border-primary/20" {...props}>
+          {children}
+        </code>
+      );
+    },
+
+    // Tables with Better Styling
+    table({ children }) {
+      return (
+        <div className="overflow-x-auto my-4">
+          <table className="w-full text-left border-collapse">
+            {children}
+          </table>
+        </div>
+      );
+    },
+
+    thead({ children }) {
+      return (
+        <thead className="bg-primary/10 border-b border-primary/30">
+          {children}
+        </thead>
+      );
+    },
+
+    tbody({ children }) {
+      return <tbody className="divide-y divide-white/5">{children}</tbody>;
+    },
+
+    tr({ children }) {
+      return <tr className="hover:bg-white/5 transition">{children}</tr>;
+    },
+
+    th({ children }) {
+      return (
+        <th className="px-4 py-3 text-xs font-semibold text-primary uppercase tracking-wider">
+          {children}
+        </th>
+      );
+    },
+
+    td({ children }) {
+      return (
+        <td className="px-4 py-3 text-sm text-textMuted">
+          {children}
+        </td>
+      );
+    },
+
+    // Better List Styling
+    ul({ children }) {
+      return <ul className="list-disc list-inside space-y-1.5 my-3 text-textMuted">{children}</ul>;
+    },
+
+    ol({ children }) {
+      return <ol className="list-decimal list-inside space-y-1.5 my-3 text-textMuted">{children}</ol>;
+    },
+
+    li({ children }) {
+      return <li className="pl-1">{children}</li>;
+    },
+
+    // Better Heading Styling
+    h1({ children }) {
+      return <h1 className="text-lg font-bold text-white mt-4 mb-2">{children}</h1>;
+    },
+    h2({ children }) {
+      return <h2 className="text-base font-semibold text-primary mt-3 mb-2">{children}</h2>;
+    },
+    h3({ children }) {
+      return <h3 className="text-sm font-semibold text-accent mt-2 mb-1">{children}</h3>;
+    },
+
+    // Better Paragraph Spacing
+    p({ children }) {
+      return <p className="text-sm text-textMuted leading-relaxed my-2">{children}</p>;
+    },
+
+    // Better Link Styling
+    a({ href, children }) {
+      return (
+        <a 
+          href={href} 
+          className="text-primary hover:text-accent underline underline-offset-2 transition"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {children}
+        </a>
+      );
+    },
+
+    // Blockquote for Warnings/Notes
+    blockquote({ children }) {
+      return (
+        <blockquote className="border-l-4 border-primary/50 bg-primary/5 pl-4 py-3 my-3 rounded-r-lg text-sm text-textMuted">
+          {children}
+        </blockquote>
+      );
+    },
+  };
+
   return (
     <div className="flex flex-col h-full bg-surface/30 rounded-2xl border border-white/5 overflow-hidden">
       {/* Header */}
@@ -66,6 +191,7 @@ const ChatBox = ({ repoUrl }) => {
         </div>
         <div>
           <h3 className="font-bold text-white">GitWise Architect</h3>
+          <p className="text-[10px] text-textMuted">Powered by Groq AI</p>
         </div>
       </div>
 
@@ -83,30 +209,16 @@ const ChatBox = ({ repoUrl }) => {
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
               msg.role === 'user' ? 'bg-primary' : 'bg-accent'
             }`}>
-              {msg.role === 'user' ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
+              {msg.role === 'user' ? <User size={16} className="text-bg" /> : <Bot size={16} className="text-bg" />}
             </div>
 
             {/* Bubble */}
-            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-lg ${
+            <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed shadow-lg overflow-hidden ${
               msg.role === 'user' 
                 ? 'bg-primary/20 text-white border border-primary/30 rounded-tr-none' 
                 : 'bg-bg/50 text-textMuted border border-white/5 rounded-tl-none'
             }`}>
-              <ReactMarkdown 
-                components={{
-                  code({node, inline, className, children, ...props}) {
-                    return !inline ? (
-                      <code className="block bg-black/50 p-3 rounded-lg my-2 text-xs font-mono text-green-400 overflow-x-auto" {...props}>
-                        {children}
-                      </code>
-                    ) : (
-                      <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent" {...props}>
-                        {children}
-                      </code>
-                    );
-                  }
-                }}
-              >
+              <ReactMarkdown components={markdownComponents}>
                 {msg.content}
               </ReactMarkdown>
             </div>
@@ -114,17 +226,26 @@ const ChatBox = ({ repoUrl }) => {
         ))}
         
         {loading && (
-          <div className="bg-bg/50 border border-white/5 p-4 rounded-2xl rounded-tl-none text-textMuted text-sm flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" />
-            GitWise AI is analyzing the repository...
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex gap-3"
+          >
+            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+              <Bot size={16} className="text-bg" />
+            </div>
+            <div className="bg-bg/50 border border-white/5 p-4 rounded-2xl rounded-tl-none text-textMuted text-sm flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" />
+              GitWise AI is thinking...
+            </div>
+          </motion.div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input Area */}
       <div className="p-4 border-t border-white/10 bg-surface/50 backdrop-blur-md">
-        <div className="relative flex items-end gap-2 bg-bg/50 border border-white/10 rounded-xl p-2 focus-within:border-primary/50 transition-colors">
+        <div className="relative flex items-center gap-3 bg-bg/50 border border-white/10 rounded-xl px-4 py-3 focus-within:border-primary/50 transition-colors">
           <textarea
             value={input}
             onChange={(e) => {
@@ -135,19 +256,20 @@ const ChatBox = ({ repoUrl }) => {
             onKeyDown={handleKeyDown}
             placeholder="Ask about risks, architecture, or files..."
             rows={1}
-            className="w-full bg-transparent border-none outline-none text-white text-sm resize-none max-h-32 py-2 px-2 custom-scrollbar"
-            style={{ minHeight: '40px' }}
+            className="flex-1 bg-transparent border-none outline-none text-white text-sm resize-none max-h-32 py-1 custom-scrollbar placeholder:text-textMuted/50"
+            style={{ minHeight: '24px' }}
             disabled={loading}
           />
+          
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="p-2 bg-primary hover:bg-primaryHover text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            className="flex items-center justify-center w-10 h-10 bg-primary hover:bg-primaryHover text-bg rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 group"
           >
-            <Send size={18} />
+            <Send size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>
         </div>
-        <p className="text-[10px] text-textMuted mt-2 text-center">
+        <p className="text-[10px] text-textMuted/60 mt-2 text-center">
           GitWise AI can make mistakes. Verify critical code suggestions.
         </p>
       </div>

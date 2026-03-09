@@ -2,94 +2,98 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ────────────────────────────────────────
-   GLOBAL THEME & RESET
-   ──────────────────────────────────────── */
+/* ✅ CENTRALIZED CSS VARIABLES (From theme.js) */
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: dark;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Primary Colors */
+  --primary: #CCFF00;
+  --primary-hover: #B3E600;
+  --primary-light: #E5FF80;
+  
+  /* Accent Colors */
+  --accent: #FFFF00;
+  --accent-hover: #E6E600;
+  --secondary: #DFFF00;
+  
+  /* Background Colors */
+  --bg: #000000;
+  --surface: #0A0A0A;
+  --surface-hover: #141414;
+  --surface-border: #1A1A1A;
+  
+  /* Text Colors */
+  --text-main: #FFFFFF;
+  --text-muted: #A3A3A3;
+  --text-disabled: #666666;
+  
+  /* Status Colors */
+  --success: #CCFF00;
+  --warning: #FFFF00;
+  --danger: #FF3333;
+  --info: #00FFFF;
+  
+  /* Effects */
+  --neon-glow: 0 0 10px rgba(204, 255, 0, 0.5), 0 0 20px rgba(204, 255, 0, 0.3);
+  --glow-strong: 0 0 20px rgba(204, 255, 0, 0.4), 0 0 40px rgba(204, 255, 0, 0.2);
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  /* Your requested deep black/violet background */
-  background-color: #0a0a0f; 
-  color: #ffffff;
-  overflow-x: hidden;
+  background-color: var(--bg);
+  color: var(--text-main);
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* Remove default link styles */
-a {
-  text-decoration: inherit;
-  color: inherit;
-}
-
-/* ────────────────────────────────────────
-   CUSTOM SCROLLBAR (Sleek Dark Mode)
-   ──────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0a0a0f; /* Matches body bg */
-}
-
-::-webkit-scrollbar-thumb {
-  background: #2d2d44; /* Dark grey-purple */
-  border-radius: 4px;
-  transition: background 0.3s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #8b5cf6; /* Your primary violet */
-}
-
-/* Firefox Scrollbar Support */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #2d2d44 #0a0a0f;
-}
-
-/* ────────────────────────────────────────
-   UTILITY CLASSES
-   ──────────────────────────────────────── */
-
-/* Glassmorphism Effect */
+/* ✅ GLASS EFFECT */
 .glass {
-  background: rgba(19, 19, 31, 0.6);
+  background: rgba(10, 10, 10, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(139, 92, 246, 0.15); /* Subtle violet border */
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(204, 255, 0, 0.1);
 }
 
-/* Text Gradient Utility */
+.glass:hover {
+  border-color: rgba(204, 255, 0, 0.3);
+}
+
+/* ✅ NEON GLOW EFFECTS */
+.neon-text {
+  text-shadow: var(--neon-glow);
+}
+
+.neon-border {
+  box-shadow: var(--neon-glow), inset 0 0 5px rgba(204, 255, 0, 0.1);
+}
+
+.neon-glow {
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: var(--neon-glow); }
+  to { box-shadow: var(--glow-strong); }
+}
+
+/* ✅ SCROLLBAR */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* ✅ GRADIENT TEXT */
 .text-gradient {
-  background: linear-gradient(to right, #ffffff, #8b5cf6, #a78bfa);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-/* Input Field Reset */
-input:focus, textarea:focus, button:focus {
-  outline: none;
-  ring: none;
-}
-
-/* Selection Color */
-::selection {
-  background-color: #8b5cf6;
-  color: #ffffff;
 }

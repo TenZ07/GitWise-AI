@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Github, Star, GitFork, Users, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
+import { ArrowLeft, Github, Star, GitFork, Users, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';
+import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -88,7 +89,8 @@ const Dashboard = () => {
     finally { setIsReanalyzing(false); }
   };
 
-  const getScoreColor = (score) => score >= 80 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444';
+  // ✅ ELECTRIC KIWI SCORE COLORS
+  const getScoreColor = (score) => score >= 80 ? '#CCFF00' : score >= 50 ? '#FFFF00' : '#FF3333';
   const scoreColor = getScoreColor(codeHealthScore);
 
   // ✅ Helper to get Groq data (supports both root level and nested for compatibility)
@@ -97,45 +99,47 @@ const Dashboard = () => {
   };
 
   const containerVariants = {
-  hidden: {},
-  show: {
-    transition: {
-      staggerChildren: 0.12
+    hidden: {},
+    show: {
+      transition: {
+        staggerChildren: 0.12
+      }
     }
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-bg text-textMain pb-20">
       <Toaster position="top-center" />
       
-      {/* Floating GitHub Button */}
-      <a 
+      {/* Floating GitHub Button - ELECTRIC KIWI GLOW */}
+      <a
         href="https://github.com/TenZ07"
-        target="_blank" 
+        target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-8 left-8 z-50 group"
       >
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-purple-500 to-accent rounded-full blur-lg opacity-60 group-hover:opacity-100 animate-pulse transition-opacity duration-300"></div>
-          <div className="relative flex items-center gap-3 px-6 py-3 bg-surface border border-white/10 rounded-full shadow-2xl hover:shadow-primary/50 transition-all duration-300 group-hover:scale-110 group-hover:border-primary/50">
-            <Github className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
+          {/* Neon Glow Effect */}
+          <div className="absolute inset-0 blur-xl bg-gradient-to-r from-primary to-accent opacity-60 rounded-full group-hover:opacity-100 transition animate-pulse" />
+
+          <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-surface border border-primary/30 backdrop-blur-lg group-hover:scale-110 group-hover:border-primary transition">
+            <Github className="w-6 h-6 text-primary" />
           </div>
         </div>
       </a>
       
-      {/* Navbar */}
-      <nav className="border-b border-white/10 bg-surface/50 backdrop-blur-md sticky top-0 z-50">
+      {/* Navbar - ELECTRIC KIWI BORDERS */}
+      <nav className="border-b border-primary/20 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/')} className="p-2 hover:bg-white/10 rounded-full transition"><ArrowLeft className="w-5 h-5" /></button>
+            <button onClick={() => navigate('/')} className="p-2 hover:bg-primary/10 rounded-full transition"><ArrowLeft className="w-5 h-5 text-primary" /></button>
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2"><Github className="w-6 h-6 text-primary" />{owner} / {repoName}</h1>
               <p className="text-xs text-textMuted truncate max-w-md">{description}</p>
             </div>
           </div>
           <div className="flex items-center gap-6 text-sm">
-            <button onClick={handleReanalyze} disabled={isReanalyzing} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isReanalyzing ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-white'}`}>
+            <button onClick={handleReanalyze} disabled={isReanalyzing} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isReanalyzing ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-black'}`}>
               <RefreshCw className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} />{isReanalyzing ? 'Analyzing...' : 'Re-analyze'}
             </button>
           </div>
@@ -143,7 +147,7 @@ const Dashboard = () => {
       </nav>
 
       {/* Mobile Tabs */}
-      <div className="lg:hidden flex border-b border-white/10 bg-surface/30">
+      <div className="lg:hidden flex border-b border-primary/20 bg-surface/30">
         <button onClick={() => setActiveTab('analysis')} className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'analysis' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}><BarChart3 size={16} /> Analysis</button>
         <button onClick={() => setActiveTab('chat')} className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}><MessageSquare size={16} /> AI Chat</button>
       </div>
@@ -163,7 +167,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Left Column: Profile + Health Score */}
               <div className="flex flex-col gap-6">
-                {/* Profile Card */}
+                {/* Profile Card - NEON GLOW */}
                 <DashboardCard className="flex flex-col items-center justify-center group cursor-pointer">
                   <a 
                     href={`https://github.com/${owner}`}
@@ -172,7 +176,7 @@ const Dashboard = () => {
                     className="flex flex-col items-center"
                   >
                   <div className="relative mb-3">
-                    <div className="absolute inset-0 bg-primary/30 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-primary/40 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <img 
                       src={`https://github.com/${owner}.png`} 
                       alt={owner}
@@ -184,7 +188,7 @@ const Dashboard = () => {
                   </a>
                 </DashboardCard>
 
-                {/* Health Score Card */}
+                {/* Health Score Card - ELECTRIC KIWI GRADIENT GLOW */}
                 <DashboardCard className="flex flex-col items-center justify-center relative overflow-hidden">
                 <div
                   className="absolute inset-0 opacity-20 blur-2xl"
@@ -201,8 +205,8 @@ const Dashboard = () => {
                     text={`${codeHealthScore}`}
                     styles={buildStyles({
                       pathColor: scoreColor,
-                      textColor: "#fff",
-                      trailColor: "#2d2d44",
+                      textColor: scoreColor,
+                      trailColor: '#1A1A1A',
                       textSize: "26px",
                       strokeWidth: 10,
                       pathTransitionDuration: 1.2
@@ -213,10 +217,10 @@ const Dashboard = () => {
                 <span
                   className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
                     codeHealthScore >= 80
-                      ? "bg-green-500/10 text-green-400 border-green-500/30"
+                      ? "bg-primary/10 text-primary border-primary/30"
                       : codeHealthScore >= 50
-                      ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
-                      : "bg-red-500/10 text-red-400 border-red-500/30"
+                      ? "bg-accent/10 text-accent border-accent/30"
+                      : "bg-danger/10 text-danger border-danger/30"
                   }`}
                 >
                   {codeHealthScore >= 80
@@ -236,22 +240,23 @@ const Dashboard = () => {
                   <p className="text-sm text-textMain leading-relaxed">{getFunctionalSummary()}</p>
                 </div>
                 <div>
-                  <h3 className="text-xs font-semibold text-success uppercase tracking-wider mb-1">Use Case</h3>
+                  <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Use Case</h3>
                   <p className="text-sm text-textMain leading-relaxed">{getUseCase()}</p>
                 </div>
                 <div className="flex flex-wrap gap-2 pt-2">
                   {techStack?.slice(0, 6).map((tech, i) => (
-                    <span key={i} className="px-2 py-1 bg-surface border border-primary/20 rounded-md text-[10px] text-primary font-mono">{tech}</span>
+                    <span key={i} className="px-2 py-1 bg-surface border border-primary/30 rounded-md text-[10px] text-primary font-mono hover:bg-primary/10 transition">{tech}</span>
                   ))}
                 </div>
               </DashboardCard>
-              {/* Repository Stats */}
               </div>
+
+              {/* Repository Stats - NEON ICONS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                 <DashboardCard className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-                    <Star className="w-5 h-5 text-warning" />
+                  <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+                    <Star className="w-5 h-5 text-accent" />
                   </div>
                   <div>
                     <p className="text-xs text-textMuted">Stars</p>
@@ -260,8 +265,8 @@ const Dashboard = () => {
                 </DashboardCard>
 
                 <DashboardCard className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
-                    <GitFork className="w-5 h-5 text-accent" />
+                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                    <GitFork className="w-5 h-5 text-primary" />
                   </div>
                   <div>
                     <p className="text-xs text-textMuted">Forks</p>
@@ -270,8 +275,8 @@ const Dashboard = () => {
                 </DashboardCard>
 
                 <DashboardCard className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                    <Users className="w-5 h-5 text-primary" />
+                  <div className="p-3 rounded-lg bg-secondary/10 border border-secondary/20">
+                    <Users className="w-5 h-5 text-secondary" />
                   </div>
                   <div>
                     <p className="text-xs text-textMuted">Contributors</p>
@@ -280,14 +285,12 @@ const Dashboard = () => {
                     </p>
                   </div>
                 </DashboardCard>
-
-
-            </div>
+              </div>
             
-            {/* Improvements Grid */}
+            {/* Improvements Grid - NEON HOVER */}
             <DashboardCard>
               <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-warning" />
+                <AlertTriangle className="w-5 h-5 text-accent" />
                 Key Improvements
               </h3>
 
@@ -296,17 +299,17 @@ const Dashboard = () => {
                   improvements.slice(0, 6).map((imp, i) => (
                     <div
                       key={i}
-                      className="group p-4 rounded-xl border border-white/5 bg-surface/40 hover:border-primary/40 hover:bg-surface/60 transition-all duration-300"
+                      className="group p-4 rounded-xl border border-white/5 bg-surface/40 hover:border-primary/40 hover:bg-primary/5 transition-all duration-300"
                     >
                       <div className="flex items-start justify-between mb-2">
-                        <CheckCircle className="w-4 h-4 text-success mt-1 flex-shrink-0" />
+                        <CheckCircle className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
 
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium">
                           SUGGESTION
                         </span>
                       </div>
 
-                      <p className="text-sm text-textMuted leading-relaxed group-hover:text-textMain transition">
+                      <p className="text-sm text-textMuted leading-relaxed group-hover:text-white transition">
                         {imp}
                       </p>
                     </div>
@@ -317,14 +320,14 @@ const Dashboard = () => {
               </div>
             </DashboardCard>
 
-            {/* 🆕 Deep Code Analysis Section (Groq AI) - UPDATED */}
+            {/* 🆕 Deep Code Analysis Section - ELECTRIC KIWI */}
             {(getGroqData('codeQualityInsights') || getGroqData('securityConcerns') || getGroqData('performanceIssues')) && (
               <DashboardCard>
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold flex items-center gap-2">
                     <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
                   </h3>
-                  <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+                  <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full border border-primary/30">
                     📁 {displayData.filesAnalyzed || getGroqData('analyzedFiles')?.length || 0} files analyzed
                   </span>
                 </div>
@@ -337,8 +340,8 @@ const Dashboard = () => {
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getGroqData('codeQualityInsights').strengths?.length > 0 && (
-                        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
-                          <p className="text-xs font-bold text-success mb-2 flex items-center gap-1">
+                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                          <p className="text-xs font-bold text-primary mb-2 flex items-center gap-1">
                             <CheckCircle className="w-3 h-3"/> Strengths
                           </p>
                           <ul className="space-y-1.5">
@@ -349,8 +352,8 @@ const Dashboard = () => {
                         </div>
                       )}
                       {getGroqData('codeQualityInsights').weaknesses?.length > 0 && (
-                        <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
-                          <p className="text-xs font-bold text-warning mb-2 flex items-center gap-1">
+                        <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
+                          <p className="text-xs font-bold text-accent mb-2 flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3"/> Weaknesses
                           </p>
                           <ul className="space-y-1.5">
@@ -364,7 +367,7 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Security Concerns */}
+                {/* Security Concerns - NEON RED */}
                 {getGroqData('securityConcerns')?.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-danger mb-3 flex items-center gap-2">
@@ -372,70 +375,66 @@ const Dashboard = () => {
                     </h4>
                     <div className="space-y-2">
                       {getGroqData('securityConcerns').slice(0, 4).map((concern, i) => (
-                        <div key={i} className="bg-danger/10 border border-danger/20 rounded-lg p-3 hover:border-danger/40 transition">
+                        <div key={i} className="bg-danger/10 border border-danger/30 rounded-lg p-3 hover:border-danger/50 transition">
                           <div className="flex items-start justify-between mb-1">
                             <p className="text-sm font-medium text-white">{concern.issue}</p>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                               concern.severity === 'HIGH' ? 'bg-danger text-white' :
-                              concern.severity === 'MEDIUM' ? 'bg-warning text-black' :
+                              concern.severity === 'MEDIUM' ? 'bg-accent text-black' :
                               'bg-gray-600 text-white'
                             }`}>
                               {concern.severity}
                             </span>
                           </div>
                           <p className="text-xs text-textMuted mb-2">{concern.recommendation}</p>
-                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded">📁 {concern.file}</p>
+                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded border border-primary/20">📁 {concern.file}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Performance Issues */}
+                {/* Performance Issues - NEON YELLOW */}
                 {getGroqData('performanceIssues')?.length > 0 && (
                   <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-warning mb-3 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
                       <Zap className="w-4 h-4"/> Performance Issues
                     </h4>
                     <div className="space-y-2">
                       {getGroqData('performanceIssues').slice(0, 4).map((issue, i) => (
-                        <div key={i} className="bg-warning/10 border border-warning/20 rounded-lg p-3 hover:border-warning/40 transition">
+                        <div key={i} className="bg-accent/10 border border-accent/30 rounded-lg p-3 hover:border-accent/50 transition">
                           <div className="flex items-start justify-between mb-1">
                             <p className="text-sm font-medium text-white">{issue.issue}</p>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                               issue.impact === 'HIGH' ? 'bg-danger text-white' :
-                              issue.impact === 'MEDIUM' ? 'bg-warning text-black' :
+                              issue.impact === 'MEDIUM' ? 'bg-accent text-black' :
                               'bg-gray-600 text-white'
                             }`}>
                               {issue.impact}
                             </span>
                           </div>
                           <p className="text-xs text-textMuted mb-2">{issue.solution}</p>
-                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded">📁 {issue.file}</p>
+                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded border border-primary/20">📁 {issue.file}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Architecture Patterns */}
+                {/* Architecture Patterns - NEON LIME */}
                 {getGroqData('architecturePatterns') && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
                       <Award className="w-4 h-4"/> Architecture Patterns
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                      <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
                         <p className="text-xs font-bold text-primary mb-2">✓ Detected</p>
-                        <div className="flex flex-wrap gap-2">
-                          <ul className="space-y-1">
+                        <ul className="space-y-1">
                           {getGroqData('architecturePatterns').detected?.slice(0, 4).map((p, i) => (
-                            <li key={i} className="text-xs text-textMuted">
-                              • {p}
-                            </li>
+                            <li key={i} className="text-xs text-textMuted">• {p}</li>
                           ))}
                         </ul>
-                        </div>
                       </div>
                       <div className="bg-surface/50 border border-white/5 rounded-lg p-4">
                         <p className="text-xs font-bold text-textMuted mb-2">💡 Recommendations</p>
@@ -452,13 +451,13 @@ const Dashboard = () => {
                 {/* Best Practices */}
                 {getGroqData('bestPractices') && (
                   <div>
-                    <h4 className="text-sm font-semibold text-success mb-3 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
                       <BookOpen className="w-4 h-4"/> Best Practices
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getGroqData('bestPractices').followed?.length > 0 && (
-                        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
-                          <p className="text-xs font-bold text-success mb-2">✓ Followed</p>
+                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                          <p className="text-xs font-bold text-primary mb-2">✓ Followed</p>
                           <ul className="space-y-1">
                             {getGroqData('bestPractices').followed.slice(0, 3).map((p, i) => (
                               <li key={i} className="text-xs text-textMuted">• {p}</li>
@@ -467,8 +466,8 @@ const Dashboard = () => {
                         </div>
                       )}
                       {getGroqData('bestPractices').missing?.length > 0 && (
-                        <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
-                          <p className="text-xs font-bold text-warning mb-2">⚠ Missing</p>
+                        <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
+                          <p className="text-xs font-bold text-accent mb-2">⚠ Missing</p>
                           <ul className="space-y-1">
                             {getGroqData('bestPractices').missing.slice(0, 3).map((p, i) => (
                               <li key={i} className="text-xs text-textMuted">• {p}</li>
@@ -496,7 +495,7 @@ const Dashboard = () => {
                           <p className="text-sm text-white truncate">{c.message}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-textMuted">{c.author}</span>
-                            <span className="text-[10px] text-primary font-mono bg-primary/10 px-1 rounded">{c.sha.substring(0,6)}</span>
+                            <span className="text-[10px] text-primary font-mono bg-primary/10 px-1 rounded border border-primary/20">{c.sha.substring(0,6)}</span>
                           </div>
                         </div>
                       </div>
@@ -507,17 +506,17 @@ const Dashboard = () => {
 
               {/* Top Contributors */}
               <DashboardCard>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Trophy className="w-5 h-5 text-warning"/> Top Contributors</h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Trophy className="w-5 h-5 text-accent"/> Top Contributors</h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {contributors && contributors.length > 0 ? (
                     contributors.slice(0, 6).map((c, i) => (
-                      <div key={c.login} className="flex items-center justify-between p-2 bg-surface/30 rounded-lg border border-white/5">
+                      <div key={c.login} className="flex items-center justify-between p-2 bg-surface/30 rounded-lg border border-white/5 hover:border-primary/30 transition">
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-bold text-textMuted w-4">#{i+1}</span>
                           <img src={c.avatar_url} alt={c.login} className="w-8 h-8 rounded-full border border-primary/30" />
                           <span className="text-sm font-medium text-white">{c.login}</span>
                         </div>
-                        <span className="text-xs text-primary font-mono bg-primary/10 px-2 py-1 rounded-full">{c.contributions} commits</span>
+                        <span className="text-xs text-primary font-mono bg-primary/10 px-2 py-1 rounded-full border border-primary/20">{c.contributions} commits</span>
                       </div>
                     ))
                   ) : <p className="text-textMuted text-sm">No contributors found.</p>}
