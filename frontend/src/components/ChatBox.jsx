@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, FileWarning, Shield, Key } from 'lucide-react';
 import api from '../services/api';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; // ✅ For table support
+import remarkGfm from 'remark-gfm'; 
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { motion } from "framer-motion";
@@ -18,7 +18,6 @@ const ChatBox = ({ repoUrl }) => {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -217,7 +216,6 @@ const ChatBox = ({ repoUrl }) => {
         </div>
         <div>
           <h3 className="font-bold text-white">GitWise Architect</h3>
-          <p className="text-[10px] text-textMuted">Powered by Groq AI</p>
         </div>
       </div>
 
