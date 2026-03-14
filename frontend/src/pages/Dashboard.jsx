@@ -56,16 +56,56 @@ const Dashboard = () => {
     </div>
   );
 
-  // Helpers
-  const getFunctionalSummary = () => {
-    const aiSummary = displayData.functionalSummary || displayData.summary || displayData.aiSummary;
-    if (aiSummary && aiSummary.trim().length > 0) return aiSummary;
-    return `This repository hosts ${displayData.description || 'a software project'}. Built with ${displayData.techStack?.join(", ") || 'web technologies'}.`;
+  // ✅ FIXED: Filter out improvement text from summaries
+  const cleanSummaryText = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    
+    return text
+      .split('\n')
+      .filter(line => {
+        const lowerLine = line.toLowerCase().trim();
+        // ❌ Filter out improvement suggestions
+        if (lowerLine.match(/^(refactor|implement|add|extract|use|fix|update|create|ensure|consider)/i)) return false;
+        if (lowerLine.includes('(file:')) return false;
+        if (lowerLine.includes('suggestion')) return false;
+        if (lowerLine.includes('improve')) return false;
+        if (lowerLine.includes('should')) return false;
+        // ✅ Keep only descriptive text
+        return line.trim().length > 20;
+      })
+      .join(' ')
+      .trim();
   };
 
+  // ✅ FIXED: Get clean functional summary
+  const getFunctionalSummary = () => {
+    const aiSummary = displayData.functionalSummary;
+    
+    if (aiSummary && aiSummary.trim().length > 0) {
+      const cleaned = cleanSummaryText(aiSummary);
+      if (cleaned.length > 50) {
+        return cleaned;
+      }
+    }
+    
+    // Fallback to description
+    return displayData.description 
+      ? `This repository contains ${displayData.repoName}. ${displayData.description}`
+      : `This repository hosts ${displayData.repoName}. Built with ${displayData.techStack?.join(", ") || 'web technologies'}.`;
+  };
+
+  // ✅ FIXED: Get clean use case
   const getUseCase = () => {
-    const aiUseCase = displayData.targetAudienceAndUse || displayData.useCaseSummary;
-    if (aiUseCase && aiUseCase.trim().length > 0) return aiUseCase;
+    const aiUseCase = displayData.targetAudienceAndUse;
+    
+    if (aiUseCase && aiUseCase.trim().length > 0) {
+      const cleaned = cleanSummaryText(aiUseCase);
+      if (cleaned.length > 50) {
+        return cleaned;
+      }
+    }
+    
+    // Fallback
     return `Used by developers working with ${displayData.techStack?.slice(0,2).join(", ") || 'web tech'}.`;
   };
 
@@ -233,7 +273,7 @@ const Dashboard = () => {
               </DashboardCard>
               </div>
 
-              {/* Summary Text */}
+              {/* Summary Text - CLEANED */}
               <DashboardCard className="md:col-span-2 space-y-4">
                 <div>
                   <h3 className="text-xs font-semibold text-accent uppercase tracking-wider mb-1">What This Repo Does</h3>

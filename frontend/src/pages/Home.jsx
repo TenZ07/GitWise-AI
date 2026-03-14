@@ -125,7 +125,7 @@ const Home = () => {
         </div>
       </motion.a>
 
-      {/* 📱 Main Content */}
+      {/* 📱 Main Content */} 
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
         <motion.div
           variants={containerVariants}

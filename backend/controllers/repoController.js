@@ -2,11 +2,31 @@ const Repo = require('../models/Repo');
 const { fetchRepoData, fetchFileContent } = require('../services/githubService');
 const { identifyCriticalFiles, analyzeCodeWithGroq } = require('../services/groqService');
 
+// ✅ HELPER: Clean summary text (remove improvement suggestions)
+const cleanSummaryText = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  
+  return text
+    .split('\n')
+    .filter(line => {
+      const lowerLine = line.toLowerCase().trim();
+      // ❌ Filter out improvement suggestions
+      if (lowerLine.match(/^(refactor|implement|add|extract|use|fix|update|create|ensure|consider|should|could|would)/i)) return false;
+      if (lowerLine.includes('(file:')) return false;
+      if (lowerLine.includes('suggestion')) return false;
+      if (lowerLine.includes('improve')) return false;
+      if (lowerLine.includes('recommend')) return false;
+      // ✅ Keep only descriptive text
+      return line.trim().length > 20;
+    })
+    .join(' ')
+    .trim();
+};
+
 exports.analyzeRepo = async (req, res) => {
   console.log('🚀 [CONTROLLER] 1. Function Entered');
   
   try {
-    // 2. Check Request Body
     console.log('📦 [CONTROLLER] 2. Request Body:', JSON.stringify(req.body));
     const { repoUrl } = req.body;
     
@@ -105,8 +125,9 @@ exports.analyzeRepo = async (req, res) => {
       console.log('✅ [CONTROLLER] 19. Groq Code Analysis Complete');
     } catch (aiError) {
       console.error('❌ [CONTROLLER] 20. Groq Analysis Failed:', aiError.message);
-      // Fallback so we don't crash
       groqAnalysis = {
+        functionalSummary: `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description || 'A software project.'}`,
+        targetAudienceAndUse: `This application is for users who need ${githubData.basicInfo.description || 'this functionality'}.`,
         codeQualityInsights: {
           strengths: ['Code structure appears organized'],
           weaknesses: ['Unable to perform deep analysis - API error'],
@@ -122,43 +143,63 @@ exports.analyzeRepo = async (req, res) => {
           followed: [],
           missing: []
         },
-        technicalDebt: ['Code analysis service temporarily unavailable']
+        technicalDebt: ['Code analysis service temporarily unavailable'],
+        improvements: ['Retry analysis after fixing API configuration']
       };
     }
 
-    // 21. Generate Summary from Groq Analysis
-    const functionalSummary = groqAnalysis.codeQualityInsights?.strengths?.[0] || 
-                              `This repository contains ${fileContents.length} analyzed files. ${githubData.basicInfo.description || ''}`;
+    // 21. ✅ CLEAN Summaries (Remove improvement text)
+    let functionalSummary = groqAnalysis.functionalSummary || '';
+    functionalSummary = cleanSummaryText(functionalSummary);
     
-    const targetAudienceAndUse = groqAnalysis.architecturePatterns?.detected?.[0] ?
-      `Built using ${groqAnalysis.architecturePatterns.detected.join(', ')} architecture. ${githubData.basicInfo.description || ''}` :
-      `A software project built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ')}`;
+    // Fallback if cleaned summary is too short
+    if (functionalSummary.length < 50) {
+      functionalSummary = githubData.basicInfo.description 
+        ? `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description}`
+        : `This repository hosts ${githubData.basicInfo.repoName}. Built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
+    }
 
-    // 22. Format Improvements from ALL Groq analysis sections
-    const improvements = [
-      ...(groqAnalysis.codeQualityInsights?.weaknesses || []).map(w => ({
-        title: 'Code Quality',
-        description: w,
-        severity: 'MEDIUM'
-      })),
-      ...(groqAnalysis.securityConcerns || []).map(s => ({
-        title: 'Security',
-        description: s.issue,
-        file: s.file,
-        severity: s.severity
-      })),
-      ...(groqAnalysis.performanceIssues || []).map(p => ({
-        title: 'Performance',
-        description: p.issue,
-        file: p.file,
-        severity: p.impact
-      })),
-      ...(groqAnalysis.technicalDebt || []).map(t => ({
-        title: 'Technical Debt',
-        description: t,
-        severity: 'LOW'
-      }))
-    ].map(imp => `${imp.title}: ${imp.description} ${imp.file ? `(File: ${imp.file})` : ''}`).slice(0, 10);
+    let targetAudienceAndUse = groqAnalysis.targetAudienceAndUse || '';
+    targetAudienceAndUse = cleanSummaryText(targetAudienceAndUse);
+    
+    // Fallback if cleaned summary is too short
+    if (targetAudienceAndUse.length < 50) {
+      targetAudienceAndUse = `Used by developers and end users working with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
+    }
+
+    // ✅ 22. Format Improvements - NO DUPLICATION WITH WEAKNESSES
+    const improvements = [];
+
+    // 1. Add ONLY from groqAnalysis.improvements array (if exists) - These are actionable suggestions
+    if (groqAnalysis.improvements && Array.isArray(groqAnalysis.improvements)) {
+      groqAnalysis.improvements.slice(0, 4).forEach(imp => {
+        improvements.push(`Improvement: ${imp}`);
+      });
+    }
+
+    // 2. Add Security Concerns (these are actionable with file references)
+    if (groqAnalysis.securityConcerns && groqAnalysis.securityConcerns.length > 0) {
+      groqAnalysis.securityConcerns.slice(0, 2).forEach(s => {
+        improvements.push(`Security: ${s.issue} (File: ${s.file || 'N/A'})`);
+      });
+    }
+
+    // 3. Add Performance Issues (these are actionable with file references)
+    if (groqAnalysis.performanceIssues && groqAnalysis.performanceIssues.length > 0) {
+      groqAnalysis.performanceIssues.slice(0, 2).forEach(p => {
+        improvements.push(`Performance: ${p.issue} (File: ${p.file || 'N/A'})`);
+      });
+    }
+
+    // 4. Add Technical Debt (if no other improvements)
+    if (improvements.length < 4 && groqAnalysis.technicalDebt && groqAnalysis.technicalDebt.length > 0) {
+      groqAnalysis.technicalDebt.slice(0, 2).forEach(t => {
+        improvements.push(`Technical Debt: ${t}`);
+      });
+    }
+
+    // Remove duplicates and limit to 6
+    const uniqueImprovements = [...new Set(improvements)].slice(0, 6);
 
     // 23. Calculate Health Score based on Groq findings
     const securityIssues = groqAnalysis.securityConcerns?.filter(s => s.severity === 'HIGH')?.length || 0;
@@ -183,14 +224,14 @@ exports.analyzeRepo = async (req, res) => {
       recentCommits: githubData.recentCommits,
       fileTree: githubData.fileTree,
       
-      // ✅ Standard Fields
+      // ✅ CLEANED Standard Fields
       functionalSummary,
       targetAudienceAndUse,
       techStack: Object.keys(githubData.basicInfo.languages || {}),
       codeHealthScore,
-      improvements,
+      improvements: uniqueImprovements, // ✅ No duplication with weaknesses
       
-      // ✅ GROQ DEEP ANALYSIS FIELDS (Save ALL of them!)
+      // ✅ GROQ DEEP ANALYSIS FIELDS (Weaknesses stay separate)
       codeQualityInsights: groqAnalysis.codeQualityInsights,
       securityConcerns: groqAnalysis.securityConcerns,
       architecturePatterns: groqAnalysis.architecturePatterns,
@@ -225,7 +266,7 @@ exports.analyzeRepo = async (req, res) => {
   }
 };
 
-// Other exports (keep your existing ones)
+// Other exports
 exports.getRepoById = async (req, res) => {
   try {
     const { id } = req.params;
