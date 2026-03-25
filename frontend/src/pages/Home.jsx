@@ -125,6 +125,19 @@ const Home = () => {
         </div>
       </motion.a>
 
+      {/* 🏷️ Top-left Brand */}
+      <motion.div
+        className="fixed top-5 left-7 z-50 flex items-center gap-2"
+        initial={{ opacity: 0, x: -30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+      >
+        <img src="/logo.png" alt="GitWise AI" className="w-12 h-12" style={{ background: 'transparent' }} />
+        <span className="text-2xl font-bold tracking-tight leading-none">
+          <span className="text-white">Git</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Wise</span>
+        </span>
+      </motion.div>
+
       {/* 📱 Main Content */} 
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
         <motion.div
@@ -145,7 +158,7 @@ const Home = () => {
             <h1 className="text-6xl md:text-7xl font-bold tracking-tight leading-tight">
               <span className="text-textMain">Understand Any</span>
               <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
+              <span className="animated-gradient-text">
                 Codebase Instantly
               </span>
             </h1>

@@ -97,3 +97,45 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ✅ ANIMATED GRADIENT TEXT - "Codebase Instantly" */
+
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 300% center;
+  }
+}
+
+.animated-gradient-text {
+  background: linear-gradient(
+    90deg,
+    #eeff00 0%,
+    #e6bc00 15%,
+    #ff9900 30%,
+    #ff3c00 45%,
+    #ff9900 60%,
+    #e6bc00 75%,
+    #eeff00 100%
+  );
+
+  background-size: 300% auto;
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+
+  animation: gradientFlow 11s linear infinite;
+
+  /* ultra subtle glow */
+  text-shadow:
+    0 0 2px rgba(204, 255, 0, 0.25);
+}
+
+
+
+
+

@@ -173,8 +173,15 @@ const Dashboard = () => {
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button onClick={() => navigate('/')} className="p-2 hover:bg-primary/10 rounded-full transition"><ArrowLeft className="w-5 h-5 text-primary" /></button>
+            {/* Brand */}
+            <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+              <img src="/logo.png" alt="GitWise AI" className="w-8 h-8" style={{ background: 'transparent' }} />
+              <span className="text-base font-bold tracking-tight hidden sm:block">
+                <span className="text-white">Git</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Wise</span>
+              </span>
+            </div>
             <div>
-              <h1 className="text-xl font-bold flex items-center gap-2"><Github className="w-6 h-6 text-primary" />{owner} / {repoName}</h1>
+              <h1 className="text-xl font-bold flex items-center gap-2"><Github className="w-5 h-5 text-primary" />{owner} / {repoName}</h1>
               <p className="text-xs text-textMuted truncate max-w-md">{description}</p>
             </div>
           </div>
