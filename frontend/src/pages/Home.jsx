@@ -72,7 +72,7 @@ const Home = () => {
     { icon: Code2, title: "Architecture Analysis", desc: "Deep dive into code structure" },
     { icon: Shield, title: "Security Scan", desc: "Identify vulnerabilities instantly" },
     { icon: Zap, title: "Performance Check", desc: "Optimize your codebase" },
-    { icon: Stars, title: "AI Improvements", desc: "Smart suggestions powered by Groq" },
+    { icon: Stars, title: "AI Improvements", desc: "Get smart suggestions" },
   ];
 
   return (
