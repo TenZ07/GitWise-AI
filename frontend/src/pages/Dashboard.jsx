@@ -2,17 +2,18 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Github, Star, GitFork, Users, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { analyzeRepo } from '../services/api';
 import ChatBox from '../components/ChatBox';
 import DashboardCard from "../components/ui/DashboardCard";
 import { motion } from "framer-motion";
 
+
 const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   const initialData = location.state?.repoData;
   const initialUrl = location.state?.repoData?.repoUrl;
 
@@ -21,25 +22,34 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('analysis');
+  const [hasLoaded, setHasLoaded] = useState(false); // ✅ FIX 1: was missing entirely
 
-  useEffect(() => {
-    if (!displayData && repoUrl) fetchFromDatabase(repoUrl);
-    else if (!displayData && !repoUrl) setIsLoading(false);
-  }, []);
-
-  const fetchFromDatabase = async (url) => {
+  // ✅ FIX 2: fetchFromDatabase declared BEFORE the useEffect that uses it
+  const fetchFromDatabase = useCallback(async (url) => {
+    if (hasLoaded) return;
     setIsLoading(true);
     try {
       const result = await analyzeRepo(url, false);
       if (result && result.data) {
         setDisplayData(result.data);
         setRepoUrl(result.data.repoUrl);
+        setHasLoaded(true);
       } else throw new Error("No data returned");
     } catch (error) {
-      toast.error("Failed to load data.");
+      toast.error("Failed to load data.", { duration: 3000 });
       navigate('/');
-    } finally { setIsLoading(false); }
-  };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasLoaded, navigate]);
+
+  useEffect(() => {
+    if (!displayData && repoUrl && !hasLoaded) {
+      fetchFromDatabase(repoUrl);
+    } else if (!displayData && !repoUrl) {
+      setIsLoading(false);
+    }
+  }, [displayData, repoUrl, fetchFromDatabase, hasLoaded]);
 
   if (isLoading) return (
     <div className="min-h-screen bg-bg text-white flex flex-col items-center justify-center">
@@ -56,62 +66,55 @@ const Dashboard = () => {
     </div>
   );
 
-  // ✅ FIXED: Filter out improvement text from summaries
+  // ✅ Filter out improvement text from summaries
   const cleanSummaryText = (text) => {
     if (!text || typeof text !== 'string') return '';
-    
+
     return text
       .split('\n')
       .filter(line => {
         const lowerLine = line.toLowerCase().trim();
-        // ❌ Filter out improvement suggestions
         if (lowerLine.match(/^(refactor|implement|add|extract|use|fix|update|create|ensure|consider)/i)) return false;
         if (lowerLine.includes('(file:')) return false;
         if (lowerLine.includes('suggestion')) return false;
         if (lowerLine.includes('improve')) return false;
         if (lowerLine.includes('should')) return false;
-        // ✅ Keep only descriptive text
         return line.trim().length > 20;
       })
       .join(' ')
       .trim();
   };
 
-  // ✅ FIXED: Get clean functional summary
   const getFunctionalSummary = () => {
     const aiSummary = displayData.functionalSummary;
-    
+
     if (aiSummary && aiSummary.trim().length > 0) {
       const cleaned = cleanSummaryText(aiSummary);
-      if (cleaned.length > 50) {
-        return cleaned;
-      }
+      if (cleaned.length > 50) return cleaned;
     }
-    
-    // Fallback to description
-    return displayData.description 
+
+    return displayData.description
       ? `This repository contains ${displayData.repoName}. ${displayData.description}`
       : `This repository hosts ${displayData.repoName}. Built with ${displayData.techStack?.join(", ") || 'web technologies'}.`;
   };
 
-  // ✅ FIXED: Get clean use case
   const getUseCase = () => {
     const aiUseCase = displayData.targetAudienceAndUse;
-    
+
     if (aiUseCase && aiUseCase.trim().length > 0) {
       const cleaned = cleanSummaryText(aiUseCase);
-      if (cleaned.length > 50) {
-        return cleaned;
-      }
+      if (cleaned.length > 50) return cleaned;
     }
-    
-    // Fallback
-    return `Used by developers working with ${displayData.techStack?.slice(0,2).join(", ") || 'web tech'}.`;
+
+    return `Used by developers working with ${displayData.techStack?.slice(0, 2).join(", ") || 'web tech'}.`;
   };
 
   const { techStack, codeHealthScore, improvements, stars, forks, contributors, recentCommits, owner, repoName, description, repoUrl: dataRepoUrl } = displayData;
 
-  useEffect(() => { if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl); }, [dataRepoUrl, repoUrl]);
+  // ✅ FIX 3: Only depend on dataRepoUrl — removed repoUrl from deps to avoid stale closure loop
+  useEffect(() => {
+    if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl);
+  }, [dataRepoUrl]);
 
   const handleReanalyze = async () => {
     const urlToUse = repoUrl || dataRepoUrl;
@@ -125,15 +128,16 @@ const Dashboard = () => {
         setRepoUrl(result.data.repoUrl);
         toast.success('Updated!', { id: loadingToast });
       }
-    } catch (error) { toast.error(error.message, { id: loadingToast }); }
-    finally { setIsReanalyzing(false); }
+    } catch (error) {
+      toast.error(error.message, { id: loadingToast });
+    } finally {
+      setIsReanalyzing(false);
+    }
   };
 
-  // ✅ ELECTRIC KIWI SCORE COLORS
   const getScoreColor = (score) => score >= 80 ? '#CCFF00' : score >= 50 ? '#FFFF00' : '#FF3333';
   const scoreColor = getScoreColor(codeHealthScore);
 
-  // ✅ Helper to get Groq data (supports both root level and nested for compatibility)
   const getGroqData = (field) => {
     return displayData[field] || displayData.codeAnalysis?.[field];
   };
@@ -150,8 +154,8 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-bg text-textMain pb-20">
       <Toaster position="top-center" />
-      
-      {/* Floating GitHub Button - ELECTRIC KIWI GLOW */}
+
+      {/* Floating GitHub Button */}
       <a
         href="https://github.com/TenZ07"
         target="_blank"
@@ -159,35 +163,42 @@ const Dashboard = () => {
         className="fixed bottom-8 left-8 z-50 group"
       >
         <div className="relative">
-          {/* Neon Glow Effect */}
           <div className="absolute inset-0 blur-xl bg-gradient-to-r from-primary to-accent opacity-60 rounded-full group-hover:opacity-100 transition animate-pulse" />
-
           <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-surface border border-primary/30 backdrop-blur-lg group-hover:scale-110 group-hover:border-primary transition">
             <Github className="w-6 h-6 text-primary" />
           </div>
         </div>
       </a>
-      
-      {/* Navbar - ELECTRIC KIWI BORDERS */}
+
+      {/* Navbar */}
       <nav className="border-b border-primary/20 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/')} className="p-2 hover:bg-primary/10 rounded-full transition"><ArrowLeft className="w-5 h-5 text-primary" /></button>
-            {/* Brand */}
+            <button onClick={() => navigate('/')} className="p-2 hover:bg-primary/10 rounded-full transition">
+              <ArrowLeft className="w-5 h-5 text-primary" />
+            </button>
             <div className="flex items-center gap-2 border-r border-white/10 pr-4">
               <img src="/logo.png" alt="GitWise AI" className="w-8 h-8" style={{ background: 'transparent' }} />
               <span className="text-base font-bold tracking-tight hidden sm:block">
-                <span className="text-white">Git</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Wise</span>
+                <span className="text-white">Git</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Wise</span>
               </span>
             </div>
             <div>
-              <h1 className="text-xl font-bold flex items-center gap-2"><Github className="w-5 h-5 text-primary" />{owner} / {repoName}</h1>
+              <h1 className="text-xl font-bold flex items-center gap-2">
+                <Github className="w-5 h-5 text-primary" />{owner} / {repoName}
+              </h1>
               <p className="text-xs text-textMuted truncate max-w-md">{description}</p>
             </div>
           </div>
           <div className="flex items-center gap-6 text-sm">
-            <button onClick={handleReanalyze} disabled={isReanalyzing} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isReanalyzing ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-black'}`}>
-              <RefreshCw className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} />{isReanalyzing ? 'Analyzing...' : 'Re-analyze'}
+            <button
+              onClick={handleReanalyze}
+              disabled={isReanalyzing}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isReanalyzing ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-black'}`}
+            >
+              <RefreshCw className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} />
+              {isReanalyzing ? 'Analyzing...' : 'Re-analyze'}
             </button>
           </div>
         </div>
@@ -195,13 +206,23 @@ const Dashboard = () => {
 
       {/* Mobile Tabs */}
       <div className="lg:hidden flex border-b border-primary/20 bg-surface/30">
-        <button onClick={() => setActiveTab('analysis')} className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'analysis' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}><BarChart3 size={16} /> Analysis</button>
-        <button onClick={() => setActiveTab('chat')} className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}><MessageSquare size={16} /> AI Chat</button>
+        <button
+          onClick={() => setActiveTab('analysis')}
+          className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'analysis' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}
+        >
+          <BarChart3 size={16} /> Analysis
+        </button>
+        <button
+          onClick={() => setActiveTab('chat')}
+          className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}
+        >
+          <MessageSquare size={16} /> AI Chat
+        </button>
       </div>
 
       <main className="max-w-[1600px] mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* LEFT COLUMN: Analysis (8 cols) */}
           <motion.div
             variants={containerVariants}
@@ -209,78 +230,70 @@ const Dashboard = () => {
             animate="show"
             className={`lg:col-span-8 space-y-6 ${activeTab === 'chat' ? 'hidden lg:block' : 'block'}`}
           >
-            
+
             {/* Top Row: Profile + Score + Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Left Column: Profile + Health Score */}
               <div className="flex flex-col gap-6">
-                {/* Profile Card - NEON GLOW */}
+                {/* Profile Card */}
                 <DashboardCard className="flex flex-col items-center justify-center group cursor-pointer">
-                  <a 
+                  <a
                     href={`https://github.com/${owner}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex flex-col items-center"
                   >
-                  <div className="relative mb-3">
-                    <div className="absolute inset-0 bg-primary/40 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <img 
-                      src={`https://github.com/${owner}.png`} 
-                      alt={owner}
-                      className="w-20 h-20 rounded-full border-2 border-primary/30 group-hover:border-primary transition-all duration-300 relative z-10"
-                    />
-                  </div>
-                  <h3 className="text-sm font-bold text-white mb-1">{owner}</h3>
-                  <p className="text-xs text-primary group-hover:text-accent transition-colors duration-300">View Profile</p>
+                    <div className="relative mb-3">
+                      <div className="absolute inset-0 bg-primary/40 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                      <img
+                        src={`https://github.com/${owner}.png`}
+                        alt={owner}
+                        className="w-20 h-20 rounded-full border-2 border-primary/30 group-hover:border-primary transition-all duration-300 relative z-10"
+                      />
+                    </div>
+                    <h3 className="text-sm font-bold text-white mb-1">{owner}</h3>
+                    <p className="text-xs text-primary group-hover:text-accent transition-colors duration-300">View Profile</p>
                   </a>
                 </DashboardCard>
 
-                {/* Health Score Card - ELECTRIC KIWI GRADIENT GLOW */}
+                {/* Health Score Card */}
                 <DashboardCard className="flex flex-col items-center justify-center relative overflow-hidden">
-                <div
-                  className="absolute inset-0 opacity-20 blur-2xl"
-                  style={{ background: `radial-gradient(circle at center, ${scoreColor} 0%, transparent 60%)` }}
-                />
-
-                <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3 z-10">
-                  Health Score
-                </h3>
-
-                <div className="w-28 h-28 relative z-10">
-                  <CircularProgressbar
-                    value={codeHealthScore}
-                    text={`${codeHealthScore}`}
-                    styles={buildStyles({
-                      pathColor: scoreColor,
-                      textColor: scoreColor,
-                      trailColor: '#1A1A1A',
-                      textSize: "26px",
-                      strokeWidth: 10,
-                      pathTransitionDuration: 1.2
-                    })}
+                  <div
+                    className="absolute inset-0 opacity-20 blur-2xl"
+                    style={{ background: `radial-gradient(circle at center, ${scoreColor} 0%, transparent 60%)` }}
                   />
-                </div>
-
-                <span
-                  className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
-                    codeHealthScore >= 80
-                      ? "bg-primary/10 text-primary border-primary/30"
-                      : codeHealthScore >= 50
-                      ? "bg-accent/10 text-accent border-accent/30"
-                      : "bg-danger/10 text-danger border-danger/30"
-                  }`}
-                >
-                  {codeHealthScore >= 80
-                    ? "Excellent"
-                    : codeHealthScore >= 50
-                    ? "Needs Optimization"
-                    : "High Risk"}
-                </span>
-
-              </DashboardCard>
+                  <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-3 z-10">
+                    Health Score
+                  </h3>
+                  <div className="w-28 h-28 relative z-10">
+                    <CircularProgressbar
+                      value={codeHealthScore}
+                      text={`${codeHealthScore}`}
+                      styles={buildStyles({
+                        pathColor: scoreColor,
+                        textColor: scoreColor,
+                        trailColor: '#1A1A1A',
+                        textSize: "26px",
+                        strokeWidth: 10,
+                        pathTransitionDuration: 1.2
+                      })}
+                    />
+                  </div>
+                  <span
+                    className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
+                      codeHealthScore >= 80
+                        ? "bg-primary/10 text-primary border-primary/30"
+                        : codeHealthScore >= 50
+                        ? "bg-accent/10 text-accent border-accent/30"
+                        : "bg-danger/10 text-danger border-danger/30"
+                    }`}
+                  >
+                    {codeHealthScore >= 80 ? "Excellent" : codeHealthScore >= 50 ? "Needs Optimization" : "High Risk"}
+                  </span>
+                </DashboardCard>
               </div>
 
-              {/* Summary Text - CLEANED */}
+              {/* Summary Text */}
               <DashboardCard className="md:col-span-2 space-y-4">
                 <div>
                   <h3 className="text-xs font-semibold text-accent uppercase tracking-wider mb-1">What This Repo Does</h3>
@@ -296,51 +309,47 @@ const Dashboard = () => {
                   ))}
                 </div>
               </DashboardCard>
-              </div>
+            </div>
 
-              {/* Repository Stats - NEON ICONS */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Repository Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <DashboardCard className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+                  <Star className="w-5 h-5 text-accent" />
+                </div>
+                <div>
+                  <p className="text-xs text-textMuted">Stars</p>
+                  <p className="text-xl font-bold text-white">{stars}</p>
+                </div>
+              </DashboardCard>
 
-                <DashboardCard className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
-                    <Star className="w-5 h-5 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-textMuted">Stars</p>
-                    <p className="text-xl font-bold text-white">{stars}</p>
-                  </div>
-                </DashboardCard>
+              <DashboardCard className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <GitFork className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs text-textMuted">Forks</p>
+                  <p className="text-xl font-bold text-white">{forks}</p>
+                </div>
+              </DashboardCard>
 
-                <DashboardCard className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                    <GitFork className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-textMuted">Forks</p>
-                    <p className="text-xl font-bold text-white">{forks}</p>
-                  </div>
-                </DashboardCard>
+              <DashboardCard className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-secondary/10 border border-secondary/20">
+                  <Users className="w-5 h-5 text-secondary" />
+                </div>
+                <div>
+                  <p className="text-xs text-textMuted">Contributors</p>
+                  <p className="text-xl font-bold text-white">{contributors?.length || 0}</p>
+                </div>
+              </DashboardCard>
+            </div>
 
-                <DashboardCard className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-secondary/10 border border-secondary/20">
-                    <Users className="w-5 h-5 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-textMuted">Contributors</p>
-                    <p className="text-xl font-bold text-white">
-                      {contributors?.length || 0}
-                    </p>
-                  </div>
-                </DashboardCard>
-              </div>
-            
-            {/* Improvements Grid - NEON HOVER */}
+            {/* Improvements Grid */}
             <DashboardCard>
               <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-accent" />
                 Key Improvements
               </h3>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {improvements && improvements.length > 0 ? (
                   improvements.slice(0, 6).map((imp, i) => (
@@ -350,12 +359,10 @@ const Dashboard = () => {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <CheckCircle className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
-
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium">
                           SUGGESTION
                         </span>
                       </div>
-
                       <p className="text-sm text-textMuted leading-relaxed group-hover:text-white transition">
                         {imp}
                       </p>
@@ -367,12 +374,12 @@ const Dashboard = () => {
               </div>
             </DashboardCard>
 
-            {/* 🆕 Deep Code Analysis Section - ELECTRIC KIWI */}
+            {/* Deep Code Analysis Section */}
             {(getGroqData('codeQualityInsights') || getGroqData('securityConcerns') || getGroqData('performanceIssues')) && (
               <DashboardCard>
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
+                    <Code2 className="w-5 h-5 text-primary" /> Deep Code Analysis
                   </h3>
                   <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full border border-primary/30">
                     📁 {displayData.filesAnalyzed || getGroqData('analyzedFiles')?.length || 0} files analyzed
@@ -383,13 +390,13 @@ const Dashboard = () => {
                 {getGroqData('codeQualityInsights') && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4"/> Code Quality
+                      <TrendingUp className="w-4 h-4" /> Code Quality
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getGroqData('codeQualityInsights').strengths?.length > 0 && (
                         <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
                           <p className="text-xs font-bold text-primary mb-2 flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3"/> Strengths
+                            <CheckCircle className="w-3 h-3" /> Strengths
                           </p>
                           <ul className="space-y-1.5">
                             {getGroqData('codeQualityInsights').strengths.slice(0, 3).map((s, i) => (
@@ -401,7 +408,7 @@ const Dashboard = () => {
                       {getGroqData('codeQualityInsights').weaknesses?.length > 0 && (
                         <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
                           <p className="text-xs font-bold text-accent mb-2 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3"/> Weaknesses
+                            <AlertTriangle className="w-3 h-3" /> Weaknesses
                           </p>
                           <ul className="space-y-1.5">
                             {getGroqData('codeQualityInsights').weaknesses.slice(0, 3).map((w, i) => (
@@ -414,11 +421,11 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Security Concerns - NEON RED */}
+                {/* Security Concerns */}
                 {getGroqData('securityConcerns')?.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-danger mb-3 flex items-center gap-2">
-                      <Shield className="w-4 h-4"/> Security Concerns
+                      <Shield className="w-4 h-4" /> Security Concerns
                     </h4>
                     <div className="space-y-2">
                       {getGroqData('securityConcerns').slice(0, 4).map((concern, i) => (
@@ -441,11 +448,11 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Performance Issues - NEON YELLOW */}
+                {/* Performance Issues */}
                 {getGroqData('performanceIssues')?.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
-                      <Zap className="w-4 h-4"/> Performance Issues
+                      <Zap className="w-4 h-4" /> Performance Issues
                     </h4>
                     <div className="space-y-2">
                       {getGroqData('performanceIssues').slice(0, 4).map((issue, i) => (
@@ -468,11 +475,11 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Architecture Patterns - NEON LIME */}
+                {/* Architecture Patterns */}
                 {getGroqData('architecturePatterns') && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
-                      <Award className="w-4 h-4"/> Architecture Patterns
+                      <Award className="w-4 h-4" /> Architecture Patterns
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
@@ -499,7 +506,7 @@ const Dashboard = () => {
                 {getGroqData('bestPractices') && (
                   <div>
                     <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4"/> Best Practices
+                      <BookOpen className="w-4 h-4" /> Best Practices
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getGroqData('bestPractices').followed?.length > 0 && (
@@ -532,7 +539,9 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Recent Commits */}
               <DashboardCard>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Terminal className="w-5 h-5 text-accent"/> Recent Activity</h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Terminal className="w-5 h-5 text-accent" /> Recent Activity
+                </h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {recentCommits && recentCommits.length > 0 ? (
                     recentCommits.slice(0, 6).map(c => (
@@ -542,7 +551,7 @@ const Dashboard = () => {
                           <p className="text-sm text-white truncate">{c.message}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-textMuted">{c.author}</span>
-                            <span className="text-[10px] text-primary font-mono bg-primary/10 px-1 rounded border border-primary/20">{c.sha.substring(0,6)}</span>
+                            <span className="text-[10px] text-primary font-mono bg-primary/10 px-1 rounded border border-primary/20">{c.sha.substring(0, 6)}</span>
                           </div>
                         </div>
                       </div>
@@ -553,13 +562,15 @@ const Dashboard = () => {
 
               {/* Top Contributors */}
               <DashboardCard>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Trophy className="w-5 h-5 text-accent"/> Top Contributors</h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-accent" /> Top Contributors
+                </h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {contributors && contributors.length > 0 ? (
                     contributors.slice(0, 6).map((c, i) => (
                       <div key={c.login} className="flex items-center justify-between p-2 bg-surface/30 rounded-lg border border-white/5 hover:border-primary/30 transition">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-textMuted w-4">#{i+1}</span>
+                          <span className="text-xs font-bold text-textMuted w-4">#{i + 1}</span>
                           <img src={c.avatar_url} alt={c.login} className="w-8 h-8 rounded-full border border-primary/30" />
                           <span className="text-sm font-medium text-white">{c.login}</span>
                         </div>

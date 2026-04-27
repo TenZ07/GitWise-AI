@@ -135,6 +135,32 @@ body {
     0 0 2px rgba(204, 255, 0, 0.25);
 }
 
+/* Smooth cursor transition for interactive elements */
+button, 
+a, 
+[role="button"], 
+.cursor-pointer,
+input[type="submit"],
+.cursor-interactive {
+  cursor: none !important; /* Hide default when custom cursor is active */
+}
+
+/* Fallback for mobile/touch */
+@media (pointer: coarse) {
+  * {
+    cursor: auto !important;
+  }
+}
+
+/* Optional: Add cursor hint for draggable elements */
+.cursor-grab {
+  cursor: none !important;
+}
+
+.cursor-grab:active {
+  cursor: none !important;
+}
+
 
 
 
