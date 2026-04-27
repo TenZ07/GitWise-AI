@@ -2,7 +2,8 @@ const Repo = require('../models/Repo');
 const { fetchRepoData, fetchFileContent } = require('../services/githubService');
 const { identifyCriticalFiles, analyzeCodeWithGroq } = require('../services/groqService');
 
-// ✅ HELPER: Clean summary text (remove improvement suggestions)
+// Helper: Clean summary text (remove improvement suggestions)
+// ✅ IMPROVED: Clean summary text (remove ONLY improvement suggestions, not valid descriptions)
 const cleanSummaryText = (text) => {
   if (!text || typeof text !== 'string') return '';
   
@@ -10,95 +11,113 @@ const cleanSummaryText = (text) => {
     .split('\n')
     .filter(line => {
       const lowerLine = line.toLowerCase().trim();
-      // ❌ Filter out improvement suggestions
-      if (lowerLine.match(/^(refactor|implement|add|extract|use|fix|update|create|ensure|consider|should|could|would)/i)) return false;
+      
+      // ❌ Filter out ONLY clear improvement/refactoring commands
+      if (lowerLine.match(/^(refactor|extract|ensure|consider)\s+/i)) return false;
+      
+      // ❌ Filter out file references
       if (lowerLine.includes('(file:')) return false;
       if (lowerLine.includes('suggestion')) return false;
-      if (lowerLine.includes('improve')) return false;
-      if (lowerLine.includes('recommend')) return false;
-      // ✅ Keep only descriptive text
-      return line.trim().length > 20;
+      
+      // ❌ Filter out lines that are ONLY recommendations
+      if (lowerLine.match(/^you should|^we should|^i recommend/i)) return false;
+      
+      // ✅ Keep lines that describe what the project IS or DOES
+      // Even if they contain "use", "add", etc., if they're descriptive, keep them
+      if (lowerLine.match(/^(this (repository|application|project|app|tool)|it (provides|uses|includes|offers|allows|enables))/i)) {
+        return true;
+      }
+      
+      // ✅ Keep lines longer than 30 chars that don't look like suggestions
+      return line.trim().length > 30 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
     })
     .join(' ')
     .trim();
 };
 
 exports.analyzeRepo = async (req, res) => {
-  console.log('🚀 [CONTROLLER] 1. Function Entered');
+  console.log('[CONTROLLER] Starting analysis for:', req.body.repoUrl);
   
   try {
-    console.log('📦 [CONTROLLER] 2. Request Body:', JSON.stringify(req.body));
     const { repoUrl } = req.body;
     
     if (!repoUrl || typeof repoUrl !== 'string') {
-      console.error('❌ [CONTROLLER] 3. Validation Failed: No URL');
       return res.status(400).json({ message: 'Valid Repository URL is required' });
     }
 
-    console.log(`🔍 [CONTROLLER] 4. Starting DEEP analysis for: ${repoUrl}`);
-
-    // 5. Check Cache Logic
+    // Check Cache Logic
     const { force } = req.query;
-    let skipCache = false;
-    if (force === 'true') {
-      skipCache = true;
-      console.log('⏩ [CONTROLLER] 5. Force Refresh requested.');
-    }
+    let skipCache = force === 'true';
 
     if (!skipCache) {
-      console.log('⏳ [CONTROLLER] 6. Checking Database for cache...');
       const existingRepo = await Repo.findOne({ repoUrl });
       
       if (existingRepo) {
-        console.log('💾 [CONTROLLER] 7. Found existing record.');
         const now = new Date();
         const lastFetched = new Date(existingRepo.lastFetched);
         const hoursSinceFetch = (now - lastFetched) / (1000 * 60 * 60);
 
         if (hoursSinceFetch < 24 && existingRepo.functionalSummary) {
-          console.log(`✅ [CONTROLLER] 8. Cache Hit! (${hoursSinceFetch.toFixed(2)}h old). Returning cached data.`);
+          console.log(`[CONTROLLER] Cache hit (${hoursSinceFetch.toFixed(2)}h old)`);
           return res.json({ 
             message: 'Data retrieved from cache', 
             existingRepo,
             cached: true 
           });
         }
-        console.log(`⏳ [CONTROLLER] 9. Cache Expired. Re-fetching...`);
-      } else {
-        console.log('🆕 [CONTROLLER] 10. No existing record found. Fresh analysis.');
       }
     }
 
-    // 11. Fetch from GitHub
-    console.log('🔄 [CONTROLLER] 11. Calling GitHub Service...');
+    // Fetch from GitHub
+    console.log('[CONTROLLER] Fetching GitHub data...');
     let githubData;
     try {
       githubData = await fetchRepoData(repoUrl);
-      console.log('✅ [CONTROLLER] 12. GitHub Data Received. Owner:', githubData.basicInfo.owner);
     } catch (ghError) {
-      console.error('❌ [CONTROLLER] 13. GitHub Fetch Failed:', ghError.message);
+      console.error('[CONTROLLER] GitHub fetch failed:', ghError.message);
       return res.status(502).json({ 
         message: 'Failed to fetch from GitHub',
         details: ghError.message 
       });
     }
 
-    // 14. 🤖 GROQ STEP 1: Identify Critical Files
-    console.log('🤖 [CONTROLLER] 14. Groq: Identifying critical files...');
+    // Identify Critical Files with Groq
+    console.log('[CONTROLLER] Identifying critical files...');
     let criticalFiles;
     try {
       criticalFiles = await identifyCriticalFiles(githubData.fileTree, githubData.basicInfo);
-      console.log(`✅ [CONTROLLER] 15. Groq selected ${criticalFiles.length} critical files`);
     } catch (error) {
-      console.error('⚠️ [CONTROLLER] Groq file selection failed, using fallback');
+      console.warn('[CONTROLLER] Groq file selection failed, using fallback');
       criticalFiles = githubData.fileTree
         .filter(f => f.type === 'file' && f.path.match(/\.(js|ts|jsx|tsx|py)$/i))
         .slice(0, 10)
         .map(f => f.path);
     }
 
-    // 16. Fetch Actual Code Content for Critical Files
-    console.log('📦 [CONTROLLER] 16. Fetching code contents for critical files...');
+    // ✅ FETCH README CONTENT
+    console.log('[CONTROLLER] Fetching README content...');
+    let readmeContent = '';
+    const readmeFile = githubData.fileTree.find(f => 
+      f.path.toLowerCase() === 'readme.md'
+    );
+    
+    if (readmeFile) {
+      try {
+        const readmeData = await fetchFileContent(
+          githubData.basicInfo.owner,
+          githubData.basicInfo.repoName,
+          readmeFile.path,
+          githubData.basicInfo.defaultBranch
+        );
+        readmeContent = readmeData?.content || '';
+        console.log('[CONTROLLER] README fetched, length:', readmeContent.length);
+      } catch (err) {
+        console.warn('[CONTROLLER] Failed to fetch README:', err.message);
+      }
+    }
+
+    // Fetch Actual Code Content for Critical Files
+    console.log('[CONTROLLER] Fetching code contents...');
     const fileContents = [];
     for (const filePath of criticalFiles) {
       try {
@@ -112,96 +131,73 @@ exports.analyzeRepo = async (req, res) => {
           fileContents.push(file);
         }
       } catch (error) {
-        console.warn(`⚠️ Could not fetch ${filePath}: ${error.message}`);
+        console.warn(`[CONTROLLER] Could not fetch ${filePath}: ${error.message}`);
       }
     }
-    console.log(`✅ [CONTROLLER] 17. Fetched ${fileContents.length} file contents`);
 
-    // 18. 🤖 GROQ STEP 2: Deep Code Analysis
-    console.log('🤖 [CONTROLLER] 18. Groq: Analyzing actual CODE...');
+    // DUAL AI ANALYSIS: Groq (Code + README)
+    console.log('[CONTROLLER] Starting AI analysis with README...');
     let groqAnalysis;
     try {
-      groqAnalysis = await analyzeCodeWithGroq(fileContents, githubData.basicInfo);
-      console.log('✅ [CONTROLLER] 19. Groq Code Analysis Complete');
+      // ✅ Pass readmeContent to Groq
+      groqAnalysis = await analyzeCodeWithGroq(fileContents, githubData.basicInfo, readmeContent);
+      console.log('[CONTROLLER] Groq code analysis complete');
     } catch (aiError) {
-      console.error('❌ [CONTROLLER] 20. Groq Analysis Failed:', aiError.message);
-      groqAnalysis = {
-        functionalSummary: `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description || 'A software project.'}`,
-        targetAudienceAndUse: `This application is for users who need ${githubData.basicInfo.description || 'this functionality'}.`,
-        codeQualityInsights: {
-          strengths: ['Code structure appears organized'],
-          weaknesses: ['Unable to perform deep analysis - API error'],
-          codeSmells: []
-        },
-        securityConcerns: [],
-        architecturePatterns: {
-          detected: ['Standard architecture'],
-          recommendations: ['Perform manual code review']
-        },
-        performanceIssues: [],
-        bestPractices: {
-          followed: [],
-          missing: []
-        },
-        technicalDebt: ['Code analysis service temporarily unavailable'],
-        improvements: ['Retry analysis after fixing API configuration']
-      };
+      console.error('[CONTROLLER] Groq analysis failed:', aiError.message);
+      // Re-throw error instead of fake fallback
+      throw aiError;
     }
 
-    // 21. ✅ CLEAN Summaries (Remove improvement text)
+    // CLEAN Summaries (Remove improvement text)
     let functionalSummary = groqAnalysis.functionalSummary || '';
     functionalSummary = cleanSummaryText(functionalSummary);
     
-    // Fallback if cleaned summary is too short
-    if (functionalSummary.length < 50) {
-      functionalSummary = githubData.basicInfo.description 
-        ? `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description}`
-        : `This repository hosts ${githubData.basicInfo.repoName}. Built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
-    }
+    // ❌ REMOVED FALLBACK: If summary is short, keep it short or show error, don't fake it
+if (!functionalSummary || functionalSummary.length < 30) {
+  // Try to build a summary from available data
+  functionalSummary = githubData.basicInfo.description 
+    ? `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description}`
+    : `This repository hosts ${githubData.basicInfo.repoName}. Built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
+  }
 
     let targetAudienceAndUse = groqAnalysis.targetAudienceAndUse || '';
     targetAudienceAndUse = cleanSummaryText(targetAudienceAndUse);
     
-    // Fallback if cleaned summary is too short
-    if (targetAudienceAndUse.length < 50) {
-      targetAudienceAndUse = `Used by developers and end users working with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
+    // ❌ REMOVED FALLBACK
+    if (!targetAudienceAndUse || targetAudienceAndUse.length < 10) {
+      targetAudienceAndUse = 'Use case generation failed. Please check README for user information.';
     }
 
-    // ✅ 22. Format Improvements - NO DUPLICATION WITH WEAKNESSES
+    // Format Improvements - NO DUPLICATION WITH WEAKNESSES
     const improvements = [];
 
-    // 1. Add ONLY from groqAnalysis.improvements array (if exists) - These are actionable suggestions
     if (groqAnalysis.improvements && Array.isArray(groqAnalysis.improvements)) {
       groqAnalysis.improvements.slice(0, 4).forEach(imp => {
         improvements.push(`Improvement: ${imp}`);
       });
     }
 
-    // 2. Add Security Concerns (these are actionable with file references)
     if (groqAnalysis.securityConcerns && groqAnalysis.securityConcerns.length > 0) {
       groqAnalysis.securityConcerns.slice(0, 2).forEach(s => {
         improvements.push(`Security: ${s.issue} (File: ${s.file || 'N/A'})`);
       });
     }
 
-    // 3. Add Performance Issues (these are actionable with file references)
     if (groqAnalysis.performanceIssues && groqAnalysis.performanceIssues.length > 0) {
       groqAnalysis.performanceIssues.slice(0, 2).forEach(p => {
         improvements.push(`Performance: ${p.issue} (File: ${p.file || 'N/A'})`);
       });
     }
 
-    // 4. Add Technical Debt (if no other improvements)
     if (improvements.length < 4 && groqAnalysis.technicalDebt && groqAnalysis.technicalDebt.length > 0) {
       groqAnalysis.technicalDebt.slice(0, 2).forEach(t => {
         improvements.push(`Technical Debt: ${t}`);
       });
     }
 
-    // Remove duplicates and limit to 6
     const uniqueImprovements = [...new Set(improvements)].slice(0, 6);
 
-    // 23. Calculate Health Score based on Groq findings
+    // Calculate Health Score
     const securityIssues = groqAnalysis.securityConcerns?.filter(s => s.severity === 'HIGH')?.length || 0;
     const perfIssues = groqAnalysis.performanceIssues?.filter(p => p.impact === 'HIGH')?.length || 0;
     const weaknesses = groqAnalysis.codeQualityInsights?.weaknesses?.length || 0;
@@ -210,8 +206,8 @@ exports.analyzeRepo = async (req, res) => {
       100 - (securityIssues * 20) - (perfIssues * 10) - (weaknesses * 5)
     ));
 
-    // 24. Save ALL Data to DB
-    console.log('💾 [CONTROLLER] 24. Saving to Database...');
+    // Save to Database
+    console.log('[CONTROLLER] Saving to database...');
     const repoData = {
       repoUrl,
       owner: githubData.basicInfo.owner,
@@ -224,14 +220,14 @@ exports.analyzeRepo = async (req, res) => {
       recentCommits: githubData.recentCommits,
       fileTree: githubData.fileTree,
       
-      // ✅ CLEANED Standard Fields
+      // Cleaned Standard Fields (No fallbacks)
       functionalSummary,
       targetAudienceAndUse,
       techStack: Object.keys(githubData.basicInfo.languages || {}),
       codeHealthScore,
-      improvements: uniqueImprovements, // ✅ No duplication with weaknesses
+      improvements: uniqueImprovements,
       
-      // ✅ GROQ DEEP ANALYSIS FIELDS (Weaknesses stay separate)
+      // Groq Deep Analysis Fields
       codeQualityInsights: groqAnalysis.codeQualityInsights,
       securityConcerns: groqAnalysis.securityConcerns,
       architecturePatterns: groqAnalysis.architecturePatterns,
@@ -249,7 +245,7 @@ exports.analyzeRepo = async (req, res) => {
       { upsert: true, returnDocument: 'after', runValidators: true }
     );
 
-    console.log('✅ [CONTROLLER] 25. Analysis Complete & Saved.');
+    console.log('[CONTROLLER] Analysis complete and saved');
     res.json({ 
       message: 'Repository analyzed successfully', 
       savedRepo,
@@ -258,7 +254,7 @@ exports.analyzeRepo = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('💥 [CONTROLLER] CRITICAL ERROR:', error);
+    console.error('[CONTROLLER] Critical error:', error);
     res.status(500).json({ 
       message: 'Internal server error',
       error: error.message 
@@ -266,7 +262,7 @@ exports.analyzeRepo = async (req, res) => {
   }
 };
 
-// Other exports
+// Other exports (unchanged)
 exports.getRepoById = async (req, res) => {
   try {
     const { id } = req.params;
