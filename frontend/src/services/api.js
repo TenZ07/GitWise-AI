@@ -18,7 +18,14 @@ export const analyzeRepo = async (repoUrl, force = false) => {
     const response = await api.post(url, { repoUrl });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to analyze repository' };
+    // Preserve the original axios error so callers can check error.code (e.g. ERR_NETWORK)
+    // but attach the backend message if available
+    if (error.response?.data?.message) {
+      error.message = error.response.data.message;
+    } else if (error.response?.data?.error) {
+      error.message = error.response.data.error;
+    }
+    throw error;
   }
 };
 export default api;

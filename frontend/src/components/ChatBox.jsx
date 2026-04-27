@@ -42,9 +42,10 @@ const ChatBox = ({ repoUrl }) => {
 
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.reply }]);
     } catch (error) {
+      const errMsg = error?.response?.data?.message || error?.message || 'Unknown error occurred';
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "❌ Error: Could not connect to AI. Please ensure the backend is running and API keys are set." 
+        content: `❌ Error: ${errMsg}` 
       }]);
     } finally {
       setLoading(false);

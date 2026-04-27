@@ -87,7 +87,7 @@ exports.analyzeRepo = async (req, res) => {
     try {
       criticalFiles = await identifyCriticalFiles(githubData.fileTree, githubData.basicInfo);
     } catch (error) {
-      console.warn('[CONTROLLER] Groq file selection failed, using fallback');
+      console.warn('[CONTROLLER] Groq file selection failed:', error.message);
       criticalFiles = githubData.fileTree
         .filter(f => f.type === 'file' && f.path.match(/\.(js|ts|jsx|tsx|py)$/i))
         .slice(0, 10)

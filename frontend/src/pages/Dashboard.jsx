@@ -9,7 +9,6 @@ import ChatBox from '../components/ChatBox';
 import DashboardCard from "../components/ui/DashboardCard";
 import { motion } from "framer-motion";
 
-
 const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -22,9 +21,9 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('analysis');
-  const [hasLoaded, setHasLoaded] = useState(false); // ✅ FIX 1: was missing entirely
+  const [hasLoaded, setHasLoaded] = useState(false);
 
-  // ✅ FIX 2: fetchFromDatabase declared BEFORE the useEffect that uses it
+  // ✅ FIX: fetchFromDatabase wrapped in useCallback
   const fetchFromDatabase = useCallback(async (url) => {
     if (hasLoaded) return;
     setIsLoading(true);
@@ -66,20 +65,37 @@ const Dashboard = () => {
     </div>
   );
 
-  // ✅ Filter out improvement text from summaries
+  // ✅ IMPROVED: Smarter summary cleaning - keeps descriptive text, removes only suggestions
   const cleanSummaryText = (text) => {
     if (!text || typeof text !== 'string') return '';
-
+    
     return text
       .split('\n')
       .filter(line => {
         const lowerLine = line.toLowerCase().trim();
-        if (lowerLine.match(/^(refactor|implement|add|extract|use|fix|update|create|ensure|consider)/i)) return false;
+        
+        // ❌ Filter out ONLY clear improvement/refactoring commands
+        if (lowerLine.match(/^(refactor|extract|ensure|consider)\s+/i)) return false;
+        
+        // ❌ Filter out file references
         if (lowerLine.includes('(file:')) return false;
         if (lowerLine.includes('suggestion')) return false;
-        if (lowerLine.includes('improve')) return false;
-        if (lowerLine.includes('should')) return false;
-        return line.trim().length > 20;
+        
+        // ❌ Filter out lines that are ONLY recommendations
+        if (lowerLine.match(/^you should|^we should|^i recommend/i)) return false;
+        
+        // ✅ Keep lines that describe what the project IS or DOES
+        if (lowerLine.match(/^(this (repository|application|project|app|tool)|it (provides|uses|includes|offers|allows|enables))/i)) {
+          return true;
+        }
+        
+        // ✅ For use cases, keep lines mentioning users, developers, teams, etc.
+        if (lowerLine.match(/(users?|developers?|teams?|business|customers?|audience)/i)) {
+          return true;
+        }
+        
+        // ✅ Keep lines longer than 20 chars that don't look like suggestions
+        return line.trim().length > 20 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
       })
       .join(' ')
       .trim();
@@ -87,51 +103,68 @@ const Dashboard = () => {
 
   const getFunctionalSummary = () => {
     const aiSummary = displayData.functionalSummary;
-
+    
     if (aiSummary && aiSummary.trim().length > 0) {
       const cleaned = cleanSummaryText(aiSummary);
-      if (cleaned.length > 50) return cleaned;
+      if (cleaned.length > 20) {
+        return cleaned;
+      }
     }
-
-    return displayData.description
-      ? `This repository contains ${displayData.repoName}. ${displayData.description}`
-      : `This repository hosts ${displayData.repoName}. Built with ${displayData.techStack?.join(", ") || 'web technologies'}.`;
+    
+    return `⚠️ Summary unavailable — AI did not return a valid functional summary for this repository.`;
   };
 
   const getUseCase = () => {
     const aiUseCase = displayData.targetAudienceAndUse;
-
+    
     if (aiUseCase && aiUseCase.trim().length > 0) {
       const cleaned = cleanSummaryText(aiUseCase);
-      if (cleaned.length > 50) return cleaned;
+      if (cleaned.length > 15) {
+        return cleaned;
+      }
     }
-
-    return `Used by developers working with ${displayData.techStack?.slice(0, 2).join(", ") || 'web tech'}.`;
+    
+    return `⚠️ Use case data unavailable — AI did not return a valid response for this field.`;
   };
 
   const { techStack, codeHealthScore, improvements, stars, forks, contributors, recentCommits, owner, repoName, description, repoUrl: dataRepoUrl } = displayData;
 
-  // ✅ FIX 3: Only depend on dataRepoUrl — removed repoUrl from deps to avoid stale closure loop
-  useEffect(() => {
-    if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl);
+  useEffect(() => { 
+    if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl); 
   }, [dataRepoUrl]);
 
   const handleReanalyze = async () => {
     const urlToUse = repoUrl || dataRepoUrl;
-    if (!urlToUse) return toast.error("URL not found");
+    
+    if (!urlToUse) {
+      toast.error("URL not found", { duration: 3000 });
+      return;
+    }
+    
+    if (isReanalyzing) return;
+    
     setIsReanalyzing(true);
-    const loadingToast = toast.loading('Re-analyzing...');
+    const loadingToast = toast.loading('Re-analyzing...', { duration: 0 });
+    
     try {
       const result = await analyzeRepo(urlToUse.trim(), true);
       if (result && result.data) {
         setDisplayData(result.data);
         setRepoUrl(result.data.repoUrl);
-        toast.success('Updated!', { id: loadingToast });
+        toast.success('Updated!', { 
+          id: loadingToast,
+          duration: 3000
+        });
+      } else {
+        throw new Error("No data returned");
       }
-    } catch (error) {
-      toast.error(error.message, { id: loadingToast });
-    } finally {
-      setIsReanalyzing(false);
+    } catch (error) { 
+      toast.error(error.message || "Re-analysis failed", { 
+        id: loadingToast,
+        duration: 3000
+      }); 
+    } finally { 
+      setIsReanalyzing(false); 
     }
   };
 
@@ -153,8 +186,32 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-bg text-textMain pb-20">
-      <Toaster position="top-center" />
-
+      <Toaster 
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#14332A',
+            color: '#E0FFF5',
+            border: '1px solid rgba(152, 251, 203, 0.3)',
+            borderRadius: '8px',
+            padding: '12px 20px',
+          },
+          success: {
+            iconTheme: {
+              primary: '#98FBCB',
+              secondary: '#0A1F1A',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#FF6B00',
+              secondary: '#0A1F1A',
+            },
+          },
+        }}
+      />
+      
       {/* Floating GitHub Button */}
       <a
         href="https://github.com/TenZ07"
@@ -169,7 +226,7 @@ const Dashboard = () => {
           </div>
         </div>
       </a>
-
+      
       {/* Navbar */}
       <nav className="border-b border-primary/20 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
@@ -195,7 +252,11 @@ const Dashboard = () => {
             <button
               onClick={handleReanalyze}
               disabled={isReanalyzing}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isReanalyzing ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-black'}`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                isReanalyzing 
+                  ? 'bg-gray-800 text-gray-400 border-gray-700' 
+                  : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-black'
+              }`}
             >
               <RefreshCw className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} />
               {isReanalyzing ? 'Analyzing...' : 'Re-analyze'}
@@ -206,15 +267,23 @@ const Dashboard = () => {
 
       {/* Mobile Tabs */}
       <div className="lg:hidden flex border-b border-primary/20 bg-surface/30">
-        <button
-          onClick={() => setActiveTab('analysis')}
-          className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'analysis' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}
+        <button 
+          onClick={() => setActiveTab('analysis')} 
+          className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${
+            activeTab === 'analysis' 
+              ? 'text-primary border-b-2 border-primary' 
+              : 'text-textMuted'
+          }`}
         >
           <BarChart3 size={16} /> Analysis
         </button>
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'text-primary border-b-2 border-primary' : 'text-textMuted'}`}
+        <button 
+          onClick={() => setActiveTab('chat')} 
+          className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${
+            activeTab === 'chat' 
+              ? 'text-primary border-b-2 border-primary' 
+              : 'text-textMuted'
+          }`}
         >
           <MessageSquare size={16} /> AI Chat
         </button>
@@ -222,7 +291,7 @@ const Dashboard = () => {
 
       <main className="max-w-[1600px] mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
+          
           {/* LEFT COLUMN: Analysis (8 cols) */}
           <motion.div
             variants={containerVariants}
@@ -230,14 +299,14 @@ const Dashboard = () => {
             animate="show"
             className={`lg:col-span-8 space-y-6 ${activeTab === 'chat' ? 'hidden lg:block' : 'block'}`}
           >
-
+            
             {/* Top Row: Profile + Score + Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Left Column: Profile + Health Score */}
               <div className="flex flex-col gap-6">
                 {/* Profile Card */}
                 <DashboardCard className="flex flex-col items-center justify-center group cursor-pointer">
-                  <a
+                  <a 
                     href={`https://github.com/${owner}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -245,8 +314,8 @@ const Dashboard = () => {
                   >
                     <div className="relative mb-3">
                       <div className="absolute inset-0 bg-primary/40 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      <img
-                        src={`https://github.com/${owner}.png`}
+                      <img 
+                        src={`https://github.com/${owner}.png`} 
                         alt={owner}
                         className="w-20 h-20 rounded-full border-2 border-primary/30 group-hover:border-primary transition-all duration-300 relative z-10"
                       />
@@ -279,21 +348,19 @@ const Dashboard = () => {
                       })}
                     />
                   </div>
-                  <span
-                    className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
-                      codeHealthScore >= 80
-                        ? "bg-primary/10 text-primary border-primary/30"
-                        : codeHealthScore >= 50
-                        ? "bg-accent/10 text-accent border-accent/30"
-                        : "bg-danger/10 text-danger border-danger/30"
-                    }`}
-                  >
+                  <span className={`mt-3 text-[11px] px-3 py-1 rounded-full font-semibold border ${
+                    codeHealthScore >= 80
+                      ? "bg-primary/10 text-primary border-primary/30"
+                      : codeHealthScore >= 50
+                      ? "bg-accent/10 text-accent border-accent/30"
+                      : "bg-danger/10 text-danger border-danger/30"
+                  }`}>
                     {codeHealthScore >= 80 ? "Excellent" : codeHealthScore >= 50 ? "Needs Optimization" : "High Risk"}
                   </span>
                 </DashboardCard>
               </div>
 
-              {/* Summary Text */}
+              {/* Summary Text - Now using smarter filtering */}
               <DashboardCard className="md:col-span-2 space-y-4">
                 <div>
                   <h3 className="text-xs font-semibold text-accent uppercase tracking-wider mb-1">What This Repo Does</h3>
@@ -343,7 +410,7 @@ const Dashboard = () => {
                 </div>
               </DashboardCard>
             </div>
-
+            
             {/* Improvements Grid */}
             <DashboardCard>
               <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
@@ -379,7 +446,7 @@ const Dashboard = () => {
               <DashboardCard>
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Code2 className="w-5 h-5 text-primary" /> Deep Code Analysis
+                    <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
                   </h3>
                   <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full border border-primary/30">
                     📁 {displayData.filesAnalyzed || getGroqData('analyzedFiles')?.length || 0} files analyzed
@@ -390,13 +457,13 @@ const Dashboard = () => {
                 {getGroqData('codeQualityInsights') && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4" /> Code Quality
+                      <TrendingUp className="w-4 h-4"/> Code Quality
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getGroqData('codeQualityInsights').strengths?.length > 0 && (
                         <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
                           <p className="text-xs font-bold text-primary mb-2 flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" /> Strengths
+                            <CheckCircle className="w-3 h-3"/> Strengths
                           </p>
                           <ul className="space-y-1.5">
                             {getGroqData('codeQualityInsights').strengths.slice(0, 3).map((s, i) => (
@@ -408,7 +475,7 @@ const Dashboard = () => {
                       {getGroqData('codeQualityInsights').weaknesses?.length > 0 && (
                         <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
                           <p className="text-xs font-bold text-accent mb-2 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Weaknesses
+                            <AlertTriangle className="w-3 h-3"/> Weaknesses
                           </p>
                           <ul className="space-y-1.5">
                             {getGroqData('codeQualityInsights').weaknesses.slice(0, 3).map((w, i) => (
@@ -425,7 +492,7 @@ const Dashboard = () => {
                 {getGroqData('securityConcerns')?.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-danger mb-3 flex items-center gap-2">
-                      <Shield className="w-4 h-4" /> Security Concerns
+                      <Shield className="w-4 h-4"/> Security Concerns
                     </h4>
                     <div className="space-y-2">
                       {getGroqData('securityConcerns').slice(0, 4).map((concern, i) => (
@@ -452,7 +519,7 @@ const Dashboard = () => {
                 {getGroqData('performanceIssues')?.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
-                      <Zap className="w-4 h-4" /> Performance Issues
+                      <Zap className="w-4 h-4"/> Performance Issues
                     </h4>
                     <div className="space-y-2">
                       {getGroqData('performanceIssues').slice(0, 4).map((issue, i) => (
@@ -479,7 +546,7 @@ const Dashboard = () => {
                 {getGroqData('architecturePatterns') && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
-                      <Award className="w-4 h-4" /> Architecture Patterns
+                      <Award className="w-4 h-4"/> Architecture Patterns
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
@@ -506,7 +573,7 @@ const Dashboard = () => {
                 {getGroqData('bestPractices') && (
                   <div>
                     <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> Best Practices
+                      <BookOpen className="w-4 h-4"/> Best Practices
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getGroqData('bestPractices').followed?.length > 0 && (
@@ -540,7 +607,7 @@ const Dashboard = () => {
               {/* Recent Commits */}
               <DashboardCard>
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Terminal className="w-5 h-5 text-accent" /> Recent Activity
+                  <Terminal className="w-5 h-5 text-accent"/> Recent Activity
                 </h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {recentCommits && recentCommits.length > 0 ? (
@@ -551,7 +618,7 @@ const Dashboard = () => {
                           <p className="text-sm text-white truncate">{c.message}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-textMuted">{c.author}</span>
-                            <span className="text-[10px] text-primary font-mono bg-primary/10 px-1 rounded border border-primary/20">{c.sha.substring(0, 6)}</span>
+                            <span className="text-[10px] text-primary font-mono bg-primary/10 px-1 rounded border border-primary/20">{c.sha.substring(0,6)}</span>
                           </div>
                         </div>
                       </div>
@@ -563,14 +630,14 @@ const Dashboard = () => {
               {/* Top Contributors */}
               <DashboardCard>
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-accent" /> Top Contributors
+                  <Trophy className="w-5 h-5 text-accent"/> Top Contributors
                 </h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                   {contributors && contributors.length > 0 ? (
                     contributors.slice(0, 6).map((c, i) => (
                       <div key={c.login} className="flex items-center justify-between p-2 bg-surface/30 rounded-lg border border-white/5 hover:border-primary/30 transition">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-textMuted w-4">#{i + 1}</span>
+                          <span className="text-xs font-bold text-textMuted w-4">#{i+1}</span>
                           <img src={c.avatar_url} alt={c.login} className="w-8 h-8 rounded-full border border-primary/30" />
                           <span className="text-sm font-medium text-white">{c.login}</span>
                         </div>

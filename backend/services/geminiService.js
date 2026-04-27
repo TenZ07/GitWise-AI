@@ -53,7 +53,6 @@ Return ONLY valid JSON, no markdown.`;
     return analysis;
   } catch (error) {
     console.error('❌ Gemini Analysis Error:', error.message);
-    // Fallback
     return {
       readmeSummary: repoInfo.description || 'No description available',
       readmeUseCase: 'Information not available',
