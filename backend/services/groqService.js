@@ -1,7 +1,6 @@
 const axios = require('axios');
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-// ✅ FIXED: Removed trailing spaces from URL
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
@@ -116,9 +115,12 @@ RESPONSE FORMAT (STRICT JSON):
 };
 
 /**
- * Analyzes code content using Groq AI - FIXED PROMPT FOR CLEAN SUMMARIES
+ * Analyzes code content using Groq AI - with README support for better summaries
+ * @param {Array} fileContents - Array of file objects { path, content }
+ * @param {Object} repoInfo - Repo metadata (owner, name, description, etc.)
+ * @param {String} readmeContent - Content of README.md file (optional)
  */
-const analyzeCodeWithGroq = async (fileContents, repoInfo) => {
+const analyzeCodeWithGroq = async (fileContents, repoInfo, readmeContent = '') => {
   try {
     if (!GROQ_API_KEY) {
       console.error('❌ GROQ_API_KEY is missing in environment variables');
@@ -154,11 +156,14 @@ ${content.substring(0, 3000)} ${content.length > 3000 ? '... [truncated]' : ''}
       })
       .join('\n\n');
 
-    // ✅ FIXED PROMPT - CLEARLY SEPARATES SUMMARY FROM IMPROVEMENTS
+    // ✅ UPDATED PROMPT - Includes README and prioritizes it for summaries
     const prompt = `You are a senior software architect performing a deep code review.
 
 REPOSITORY: ${repoInfo.owner}/${repoInfo.repoName}
-DESCRIPTION: ${repoInfo.description || 'No description'}
+SHORT DESCRIPTION: ${repoInfo.description || 'No short description provided'}
+
+README CONTENT:
+${readmeContent ? readmeContent.substring(0, 4000) : 'No README file found'}
 
 ANALYZED FILES:
 ${fileContents.map(f => f.path).join('\n')}
@@ -166,20 +171,19 @@ ${fileContents.map(f => f.path).join('\n')}
 CODE CONTENT:
 ${codeContext}
 
-⚠️ CRITICAL INSTRUCTIONS:
-1. functionalSummary and targetAudienceAndUse must ONLY describe what the repo does and who uses it
-2. DO NOT include improvement suggestions, refactoring advice, or "should" statements in summaries
-3. All improvement suggestions must go ONLY in the "improvements" array
-4. Keep summaries concise (2-4 sentences each)
-5. Return ONLY valid JSON, no markdown or extra text
-6. Weaknesses describe CURRENT problems, improvements describe ACTIONABLE solutions (DO NOT duplicate)
+⚠️ CRITICAL INSTRUCTIONS FOR SUMMARIES:
+1. **PRIMARY SOURCE**: Use the **README CONTENT** to write "functionalSummary" and "targetAudienceAndUse".
+2. **SECONDARY SOURCE**: If README is missing/short, use the **SHORT DESCRIPTION**.
+3. **TERTIARY SOURCE**: If both are missing, infer from **CODE CONTENT** (package.json, main files, imports).
+4. **NEVER USE GENERIC FALLBACKS**: Do not write "Used by developers working with...". Be specific based on the actual project.
+5. **NO IMPROVEMENTS IN SUMMARY**: Do not include "should", "could", "refactor", "improve" in summaries.
 
 Return a JSON object with this EXACT structure:
 
 {
-  "functionalSummary": "2-4 sentences describing WHAT this repository does, its main purpose, and how it works. Focus on functionality only. DO NOT include suggestions like 'should', 'could', 'refactor', 'improve', etc.",
+  "functionalSummary": "2-4 sentences describing WHAT this repository does based on README or Code. Be specific about features, technologies, and purpose.",
   
-  "targetAudienceAndUse": "2-4 sentences describing WHO uses this software and WHY. Focus on end users and their goals. DO NOT include technical implementation details.",
+  "targetAudienceAndUse": "2-4 sentences describing WHO uses this software and WHY based on README or Code features. Focus on end-user goals.",
   
   "codeQualityInsights": {
     "strengths": ["Strength 1", "Strength 2", "Strength 3"],
@@ -229,17 +233,17 @@ Return a JSON object with this EXACT structure:
   ]
 }
 
-EXAMPLE OF GOOD functionalSummary:
-"This repository contains a full-stack AI chatbot application. The frontend is built with React and Vite, providing a modern user interface for conversations. The backend uses Express.js to handle API requests and integrate with Google's Gemini API for AI responses."
+EXAMPLE OF GOOD functionalSummary (README-based):
+"This repository contains a full-stack application for managing a snack box business. The frontend is built with React and utilizes various contexts for cart, customer, and menu management. The backend uses Express.js to handle API requests, including authentication, user management, and WhatsApp messaging."
 
-EXAMPLE OF BAD functionalSummary (DO NOT DO THIS):
-"This repository contains a chatbot. You should add rate limiting. The code should be refactored. Consider using TypeScript."
+EXAMPLE OF BAD functionalSummary (generic fallback - DO NOT USE):
+"Used by developers working with JavaScript, CSS."
 
-EXAMPLE OF GOOD targetAudienceAndUse:
-"This application is for individuals who want to interact with a sophisticated AI chatbot for various purposes, such as general conversation, getting information, creative writing assistance, or exploring AI capabilities."
+EXAMPLE OF GOOD targetAudienceAndUse (README-based):
+"This software is designed for snack box business owners and customers. The application provides a user-friendly interface for customers to manage their carts, login, and receive updates via WhatsApp. Business owners can use the application to manage their menu, track sales, and send promotional messages."
 
-EXAMPLE OF BAD targetAudienceAndUse (DO NOT DO THIS):
-"Developers should use this for chatbots. You need to add authentication. The frontend could be improved with TypeScript."
+EXAMPLE OF BAD targetAudienceAndUse (generic fallback - DO NOT USE):
+"Used by developers working with web technologies."
 
 EXAMPLE OF GOOD improvements (actionable, not duplicated from weaknesses):
 [
@@ -258,6 +262,8 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
 ]
 
 ⚠️ REMEMBER:
+- Read the README first for summaries - it has the best project description
+- If README says "AI Chatbot", write about AI Chatbot features, NOT generic web app text
 - Weaknesses = CURRENT problems (for Deep Analysis section)
 - Improvements = ACTIONABLE solutions with file references (for Key Improvements section)
 - DO NOT copy weaknesses into improvements array
@@ -270,7 +276,7 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
       {
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: 'You are a code analysis expert. Return ONLY valid JSON. Keep summaries descriptive, not prescriptive. Do not duplicate weaknesses in improvements.' },
+          { role: 'system', content: 'You are a code analysis expert. Return ONLY valid JSON. Use README for summaries, not generic fallbacks.' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.3,
@@ -320,27 +326,8 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
     
     console.error('Stack trace:', error.stack);
     
-    return {
-      functionalSummary: `This repository contains ${repoInfo.repoName}. ${repoInfo.description || 'A software project built with modern web technologies.'}`,
-      targetAudienceAndUse: `This application is designed for developers and end users who need ${repoInfo.description ? 'the functionality described' : 'a modern web application solution'}.`,
-      codeQualityInsights: {
-        strengths: ['Code structure appears organized'],
-        weaknesses: [`Unable to perform deep analysis: ${error.message}`],
-        codeSmells: []
-      },
-      securityConcerns: [],
-      architecturePatterns: {
-        detected: ['Standard architecture'],
-        recommendations: ['Perform manual code review', 'Check backend logs for details']
-      },
-      performanceIssues: [],
-      bestPractices: {
-        followed: [],
-        missing: ['Unable to determine without full analysis']
-      },
-      technicalDebt: ['Code analysis service temporarily unavailable - check API key and quota'],
-      improvements: ['Retry analysis after fixing API configuration']
-    };
+    // Minimal fallback only for error handling - throw error instead of fake data
+    throw error;
   }
 };
 
