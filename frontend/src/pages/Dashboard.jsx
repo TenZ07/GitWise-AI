@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Github, Star, GitFork, Users, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2, TrendingUp, Award, BookOpen } from 'lucide-react';
+import { ArrowLeft, Github, Star, GitFork, Users, AlertTriangle, CheckCircle, Terminal, RefreshCw, Loader2, MessageSquare, BarChart3, Trophy, Shield, Zap, Code2} from 'lucide-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { useState, useEffect, useCallback } from 'react';
@@ -8,6 +8,7 @@ import { analyzeRepo } from '../services/api';
 import ChatBox from '../components/ChatBox';
 import DashboardCard from "../components/ui/DashboardCard";
 import { motion } from "framer-motion";
+import AnalysisTabs from "../components/ui/AnalysisTabs";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -23,7 +24,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('analysis');
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // ✅ FIX: fetchFromDatabase wrapped in useCallback
+
   const fetchFromDatabase = useCallback(async (url) => {
     if (hasLoaded) return;
     setIsLoading(true);
@@ -65,7 +66,6 @@ const Dashboard = () => {
     </div>
   );
 
-  // ✅ IMPROVED: Smarter summary cleaning - keeps descriptive text, removes only suggestions
   const cleanSummaryText = (text) => {
     if (!text || typeof text !== 'string') return '';
     
@@ -74,27 +74,16 @@ const Dashboard = () => {
       .filter(line => {
         const lowerLine = line.toLowerCase().trim();
         
-        // ❌ Filter out ONLY clear improvement/refactoring commands
         if (lowerLine.match(/^(refactor|extract|ensure|consider)\s+/i)) return false;
-        
-        // ❌ Filter out file references
         if (lowerLine.includes('(file:')) return false;
         if (lowerLine.includes('suggestion')) return false;
-        
-        // ❌ Filter out lines that are ONLY recommendations
         if (lowerLine.match(/^you should|^we should|^i recommend/i)) return false;
-        
-        // ✅ Keep lines that describe what the project IS or DOES
         if (lowerLine.match(/^(this (repository|application|project|app|tool)|it (provides|uses|includes|offers|allows|enables))/i)) {
           return true;
         }
-        
-        // ✅ For use cases, keep lines mentioning users, developers, teams, etc.
         if (lowerLine.match(/(users?|developers?|teams?|business|customers?|audience)/i)) {
           return true;
         }
-        
-        // ✅ Keep lines longer than 20 chars that don't look like suggestions
         return line.trim().length > 20 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
       })
       .join(' ')
@@ -227,7 +216,6 @@ const Dashboard = () => {
         </div>
       </a>
       
-      {/* Navbar */}
       <nav className="border-b border-primary/20 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -265,7 +253,6 @@ const Dashboard = () => {
         </div>
       </nav>
 
-      {/* Mobile Tabs */}
       <div className="lg:hidden flex border-b border-primary/20 bg-surface/30">
         <button 
           onClick={() => setActiveTab('analysis')} 
@@ -442,165 +429,8 @@ const Dashboard = () => {
             </DashboardCard>
 
             {/* Deep Code Analysis Section */}
-            {(getGroqData('codeQualityInsights') || getGroqData('securityConcerns') || getGroqData('performanceIssues')) && (
-              <DashboardCard>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Code2 className="w-5 h-5 text-primary"/> Deep Code Analysis
-                  </h3>
-                  <span className="text-xs text-textMuted bg-primary/10 px-3 py-1 rounded-full border border-primary/30">
-                    📁 {displayData.filesAnalyzed || getGroqData('analyzedFiles')?.length || 0} files analyzed
-                  </span>
-                </div>
+            <AnalysisTabs displayData={displayData} getGroqData={getGroqData} />
 
-                {/* Code Quality Insights */}
-                {getGroqData('codeQualityInsights') && (
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4"/> Code Quality
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {getGroqData('codeQualityInsights').strengths?.length > 0 && (
-                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-                          <p className="text-xs font-bold text-primary mb-2 flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3"/> Strengths
-                          </p>
-                          <ul className="space-y-1.5">
-                            {getGroqData('codeQualityInsights').strengths.slice(0, 3).map((s, i) => (
-                              <li key={i} className="text-xs text-textMuted leading-relaxed">• {s}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {getGroqData('codeQualityInsights').weaknesses?.length > 0 && (
-                        <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
-                          <p className="text-xs font-bold text-accent mb-2 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3"/> Weaknesses
-                          </p>
-                          <ul className="space-y-1.5">
-                            {getGroqData('codeQualityInsights').weaknesses.slice(0, 3).map((w, i) => (
-                              <li key={i} className="text-xs text-textMuted leading-relaxed">• {w}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Security Concerns */}
-                {getGroqData('securityConcerns')?.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-danger mb-3 flex items-center gap-2">
-                      <Shield className="w-4 h-4"/> Security Concerns
-                    </h4>
-                    <div className="space-y-2">
-                      {getGroqData('securityConcerns').slice(0, 4).map((concern, i) => (
-                        <div key={i} className="bg-danger/10 border border-danger/30 rounded-lg p-3 hover:border-danger/50 transition">
-                          <div className="flex items-start justify-between mb-1">
-                            <p className="text-sm font-medium text-white">{concern.issue}</p>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                              concern.severity === 'HIGH' ? 'bg-danger text-white' :
-                              concern.severity === 'MEDIUM' ? 'bg-accent text-black' :
-                              'bg-gray-600 text-white'
-                            }`}>
-                              {concern.severity}
-                            </span>
-                          </div>
-                          <p className="text-xs text-textMuted mb-2">{concern.recommendation}</p>
-                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded border border-primary/20">📁 {concern.file}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Performance Issues */}
-                {getGroqData('performanceIssues')?.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
-                      <Zap className="w-4 h-4"/> Performance Issues
-                    </h4>
-                    <div className="space-y-2">
-                      {getGroqData('performanceIssues').slice(0, 4).map((issue, i) => (
-                        <div key={i} className="bg-accent/10 border border-accent/30 rounded-lg p-3 hover:border-accent/50 transition">
-                          <div className="flex items-start justify-between mb-1">
-                            <p className="text-sm font-medium text-white">{issue.issue}</p>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                              issue.impact === 'HIGH' ? 'bg-danger text-white' :
-                              issue.impact === 'MEDIUM' ? 'bg-accent text-black' :
-                              'bg-gray-600 text-white'
-                            }`}>
-                              {issue.impact}
-                            </span>
-                          </div>
-                          <p className="text-xs text-textMuted mb-2">{issue.solution}</p>
-                          <p className="text-[10px] text-primary font-mono bg-primary/10 inline-block px-2 py-0.5 rounded border border-primary/20">📁 {issue.file}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Architecture Patterns */}
-                {getGroqData('architecturePatterns') && (
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
-                      <Award className="w-4 h-4"/> Architecture Patterns
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-                        <p className="text-xs font-bold text-primary mb-2">✓ Detected</p>
-                        <ul className="space-y-1">
-                          {getGroqData('architecturePatterns').detected?.slice(0, 4).map((p, i) => (
-                            <li key={i} className="text-xs text-textMuted">• {p}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="bg-surface/50 border border-white/5 rounded-lg p-4">
-                        <p className="text-xs font-bold text-textMuted mb-2">💡 Recommendations</p>
-                        <ul className="space-y-1">
-                          {getGroqData('architecturePatterns').recommendations?.slice(0, 2).map((r, i) => (
-                            <li key={i} className="text-xs text-textMuted">• {r}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Best Practices */}
-                {getGroqData('bestPractices') && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4"/> Best Practices
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {getGroqData('bestPractices').followed?.length > 0 && (
-                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-                          <p className="text-xs font-bold text-primary mb-2">✓ Followed</p>
-                          <ul className="space-y-1">
-                            {getGroqData('bestPractices').followed.slice(0, 3).map((p, i) => (
-                              <li key={i} className="text-xs text-textMuted">• {p}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {getGroqData('bestPractices').missing?.length > 0 && (
-                        <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
-                          <p className="text-xs font-bold text-accent mb-2">⚠ Missing</p>
-                          <ul className="space-y-1">
-                            {getGroqData('bestPractices').missing.slice(0, 3).map((p, i) => (
-                              <li key={i} className="text-xs text-textMuted">• {p}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </DashboardCard>
-            )}
 
             {/* Commits & Contributors Split */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
