@@ -1,32 +1,39 @@
 import { useState } from 'react';
 import { FileDown, Loader2 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
 import toast from 'react-hot-toast';
 
-const PDFExportButton = ({ displayData, elementId = 'pdf-content' }) => {
+const PDFExportButton = ({ displayData, elementId }) => {
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
     setIsExporting(true);
-    const loadingToast = toast.loading('Generating PDF...', { duration: 0 });
+    const loadingToast = toast.loading('Generating professional report...', { duration: 0 });
 
     try {
-      const element = document.getElementById(elementId);
-      if (!element) {
-        throw new Error('Content not found');
+      if (!elementId) {
+        throw new Error('Element ID not provided');
       }
 
-      // Clone element to avoid modifying the original
-      const clone = element.cloneNode(true);
-      
-      // Add PDF-specific styling
-      clone.classList.add('pdf-export-mode');
-      
-      // Remove interactive elements for PDF
-      const interactiveElements = clone.querySelectorAll(
-        'button, .no-print, [data-no-print]'
-      );
-      interactiveElements.forEach(el => el.remove());
+      // Get the DOM element to capture
+      const element = document.getElementById(elementId);
+      if (!element) {
+        throw new Error(`Element with ID "${elementId}" not found`);
+      }
+
+      // Configure html2canvas options for better rendering
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        scrollX: 0,
+        scrollY: -window.scrollY, // Capture the element as-is on the page
+        windowHeight: element.scrollHeight, // Use element's full height
+        windowWidth: element.scrollWidth // Use element's full width
+      });
 
       // Format filename
       const repoName = displayData?.repoName || 'repository';
@@ -36,44 +43,25 @@ const PDFExportButton = ({ displayData, elementId = 'pdf-content' }) => {
 
       // PDF configuration
       const opt = {
-        margin: [10, 10, 10, 10],
+        margin: 10,
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#000000',
-          logging: false,
-          letterRendering: true,
-        },
+        html2canvas: { scale: 2 },
         jsPDF: { 
           unit: 'mm', 
           format: 'a4', 
           orientation: 'portrait',
           compress: true
-        },
-        pagebreak: { 
-          mode: ['avoid-all', 'css', 'legacy'],
-          before: '.page-break-before',
-          after: '.page-break-after',
-          avoid: ['.no-page-break']
         }
       };
 
-      // Generate PDF
-      await html2pdf().set(opt).from(clone).save();
-      
-      toast.success('PDF exported successfully!', { 
-        id: loadingToast,
-        duration: 3000 
-      });
+      // Generate PDF from canvas
+      await html2pdf().set(opt).from(canvas, 'canvas').save();
+
+      toast.success('Professional report exported!', { id: loadingToast, duration: 3000 });
     } catch (error) {
       console.error('PDF Export Error:', error);
-      toast.error(`Failed to export PDF: ${error.message}`, { 
-        id: loadingToast,
-        duration: 4000 
-      });
+      toast.error(`Failed to export: ${error.message}`, { id: loadingToast, duration: 4000 });
     } finally {
       setIsExporting(false);
     }
@@ -88,17 +76,17 @@ const PDFExportButton = ({ displayData, elementId = 'pdf-content' }) => {
           ? 'bg-gray-800 text-gray-400 border-gray-700 cursor-not-allowed'
           : 'bg-accent/10 text-accent border-accent/30 hover:bg-accent hover:text-black'
       }`}
-      title="Export analysis as PDF"
+      title="Export professional PDF report"
     >
       {isExporting ? (
         <>
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Exporting...</span>
+          <span className="hidden sm:inline">Generating...</span>
         </>
       ) : (
         <>
           <FileDown className="w-4 h-4" />
-          <span className="hidden sm:inline">Export PDF</span>
+          <span className="hidden sm:inline">Export Report</span>
         </>
       )}
     </button>
