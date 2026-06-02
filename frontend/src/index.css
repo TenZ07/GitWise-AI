@@ -134,6 +134,102 @@ body {
   text-shadow:
     0 0 2px rgba(204, 255, 0, 0.25);
 }
+.pdf-export-mode .no-print,
+.pdf-export-mode button,
+.pdf-export-mode [data-no-print="true"] {
+  display: none !important;
+}
+
+/* Ensure proper page breaks */
+.pdf-export-mode .page-break-before {
+  page-break-before: always;
+}
+
+.pdf-export-mode .page-break-after {
+  page-break-after: always;
+}
+
+.pdf-export-mode .no-page-break {
+  page-break-inside: avoid;
+}
+
+/* PDF-friendly background colors */
+.pdf-export-mode {
+  background: #000000 !important;
+  color: #ffffff !important;
+  padding: 20px !important;
+}
+
+/* Ensure cards are visible in PDF */
+.pdf-export-mode .bg-surface,
+.pdf-export-mode .bg-surface\/50,
+.pdf-export-mode .bg-surface\/80 {
+  background-color: #1a1a1a !important;
+  border: 1px solid rgba(152, 251, 203, 0.2) !important;
+}
+
+/* Fix text colors for PDF */
+.pdf-export-mode .text-textMain,
+.pdf-export-mode .text-white {
+  color: #ffffff !important;
+}
+
+.pdf-export-mode .text-textMuted {
+  color: #a0a0a0 !important;
+}
+
+.pdf-export-mode .text-primary {
+  color: #98FBCB !important;
+}
+
+.pdf-export-mode .text-accent {
+  color: #CCFF00 !important;
+}
+
+.pdf-export-mode .text-danger {
+  color: #FF3333 !important;
+}
+
+/* PDF Header */
+.pdf-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #98FBCB;
+}
+
+.pdf-header h1 {
+  font-size: 28px;
+  font-weight: bold;
+  color: #98FBCB;
+  margin-bottom: 8px;
+}
+
+.pdf-header p {
+  font-size: 14px;
+  color: #a0a0a0;
+}
+
+/* PDF Footer */
+.pdf-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(152, 251, 203, 0.3);
+  text-align: center;
+  font-size: 11px;
+  color: #a0a0a0;
+}
+
+/* Print-specific styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: #000000 !important;
+  }
+}
 
 
 

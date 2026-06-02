@@ -9,6 +9,7 @@ import ChatBox from '../components/ChatBox';
 import DashboardCard from "../components/ui/DashboardCard";
 import { motion } from "framer-motion";
 import AnalysisTabs from "../components/ui/AnalysisTabs";
+import PDFExportButton from '../components/PDFExportButton';
 
 const Dashboard = () => {
   const location = useLocation();
@@ -236,13 +237,17 @@ const Dashboard = () => {
               <p className="text-xs text-textMuted truncate max-w-md">{description}</p>
             </div>
           </div>
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-3 text-sm">
+            {/* ✅ NEW: PDF Export Button */}
+            <PDFExportButton displayData={displayData} elementId="pdf-content" />
+            
+            {/* Existing Re-analyze Button */}
             <button
               onClick={handleReanalyze}
               disabled={isReanalyzing}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                isReanalyzing 
-                  ? 'bg-gray-800 text-gray-400 border-gray-700' 
+                isReanalyzing
+                  ? 'bg-gray-800 text-gray-400 border-gray-700'
                   : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary hover:text-black'
               }`}
             >
@@ -276,7 +281,7 @@ const Dashboard = () => {
         </button>
       </div>
 
-      <main className="max-w-[1600px] mx-auto px-6 py-8">
+      <main id="pdf-content" className="max-w-[1600px] mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* LEFT COLUMN: Analysis (8 cols) */}
