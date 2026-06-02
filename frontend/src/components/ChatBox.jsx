@@ -59,29 +59,21 @@ const ChatBox = ({ repoUrl }) => {
     }
   };
 
-  // ✅ Clean up malformed markdown from AI response
   const cleanMarkdown = (text) => {
     if (!text) return '';
     
     return text
-      // Fix malformed table separators (---||| → |---|)
       .replace(/\|-+\|+/g, '|---|')
       .replace(/\|-\|/g, '|---|')
       .replace(/\|{2,}/g, '|')
-      // Fix extra pipes at end of lines
       .replace(/\|\s*$/gm, '|')
-      // Fix missing pipes at start of table rows
       .replace(/^\s*([^|].*\|)/gm, '|$1')
-      // Clean up extra backticks
       .replace(/`{4,}/g, '```')
-      // Ensure proper spacing in tables
       .replace(/\|(\w)/g, '| $1')
       .replace(/(\w)\|/g, '$1 |');
   };
 
-  // ✅ Custom Markdown Components
   const markdownComponents = {
-    // Code Blocks with Syntax Highlighting
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
       return !inline ? (
@@ -106,8 +98,6 @@ const ChatBox = ({ repoUrl }) => {
         </code>
       );
     },
-
-    // Tables with Proper Styling
     table({ children }) {
       return (
         <div className="overflow-x-auto my-4 rounded-lg border border-primary/20">
