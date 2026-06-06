@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { FileDown, Loader2 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
-import html2canvas from 'html2canvas';
 import toast from 'react-hot-toast';
+import { generatePDFReport } from '../utils/pdfReportTemplate';
 
-const PDFExportButton = ({ displayData, elementId }) => {
+const PDFExportButton = ({ displayData }) => {
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
@@ -12,51 +12,66 @@ const PDFExportButton = ({ displayData, elementId }) => {
     const loadingToast = toast.loading('Generating professional report...', { duration: 0 });
 
     try {
-      if (!elementId) {
-        throw new Error('Element ID not provided');
-      }
+      // 1. Generate HTML content (Now just a div, not a full document)
+      const htmlContent = generatePDFReport(displayData);
 
-      // Get the DOM element to capture
-      const element = document.getElementById(elementId);
-      if (!element) {
-        throw new Error(`Element with ID "${elementId}" not found`);
-      }
+      // 2. Create temporary container
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      
+      // 3. Style it to be invisible but renderable
+      tempDiv.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 210mm; /* A4 width */
+        background: white;
+        z-index: -1;
+        opacity: 0; /* Invisible to user, but visible to html2canvas */
+        pointer-events: none;
+      `;
+      
+      document.body.appendChild(tempDiv);
 
-      // Configure html2canvas options for better rendering
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: -window.scrollY, // Capture the element as-is on the page
-        windowHeight: element.scrollHeight, // Use element's full height
-        windowWidth: element.scrollWidth // Use element's full width
-      });
+      // 4. Wait a moment for the DOM to update
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Format filename
+      // 5. Format filename
       const repoName = displayData?.repoName || 'repository';
       const owner = displayData?.owner || 'unknown';
       const date = new Date().toISOString().split('T')[0];
       const filename = `GitWise-Report-${owner}-${repoName}-${date}.pdf`;
 
-      // PDF configuration
+      // 6. PDF configuration
       const opt = {
-        margin: 10,
+        margin: 0, // Remove margins here, handle padding in CSS
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          // Remove fixed windowWidth/Height to let it flow naturally
+        },
         jsPDF: { 
           unit: 'mm', 
           format: 'a4', 
           orientation: 'portrait',
           compress: true
-        }
+        },
+        // Handle page breaks based on CSS classes
+        pagebreak: { mode: ['css', 'legacy'] }
       };
 
-      // Generate PDF from canvas
-      await html2pdf().set(opt).from(canvas, 'canvas').save();
+      // 7. Generate PDF
+      await html2pdf().set(opt).from(tempDiv).save();
+
+      // 8. Cleanup
+      document.body.removeChild(tempDiv);
 
       toast.success('Professional report exported!', { id: loadingToast, duration: 3000 });
     } catch (error) {
