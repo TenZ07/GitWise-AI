@@ -28,8 +28,8 @@ const cleanSummaryText = (text) => {
         return true;
       }
       
-      // ✅ Keep lines longer than 30 chars that don't look like suggestions
-      return line.trim().length > 30 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
+      // ✅ Keep lines longer than 15 chars that don't look like suggestions
+      return line.trim().length > 15 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
     })
     .join(' ')
     .trim();
@@ -153,19 +153,31 @@ exports.analyzeRepo = async (req, res) => {
     functionalSummary = cleanSummaryText(functionalSummary);
     
     // ❌ REMOVED FALLBACK: If summary is short, keep it short or show error, don't fake it
-if (!functionalSummary || functionalSummary.length < 30) {
-  // Try to build a summary from available data
-  functionalSummary = githubData.basicInfo.description 
-    ? `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description}`
-    : `This repository hosts ${githubData.basicInfo.repoName}. Built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
-  }
+    if (!functionalSummary || functionalSummary.length < 15) {
+      // Try using the raw AI text before falling back
+      const rawSummary = groqAnalysis.functionalSummary || '';
+      if (rawSummary.trim().length >= 15) {
+        functionalSummary = rawSummary.trim();
+      } else {
+        // Build a summary from available data
+        functionalSummary = githubData.basicInfo.description 
+          ? `This repository contains ${githubData.basicInfo.repoName}. ${githubData.basicInfo.description}`
+          : `This repository hosts ${githubData.basicInfo.repoName}. Built with ${Object.keys(githubData.basicInfo.languages || {}).join(', ') || 'web technologies'}.`;
+      }
+    }
 
     let targetAudienceAndUse = groqAnalysis.targetAudienceAndUse || '';
     targetAudienceAndUse = cleanSummaryText(targetAudienceAndUse);
     
     // ❌ REMOVED FALLBACK
     if (!targetAudienceAndUse || targetAudienceAndUse.length < 10) {
-      targetAudienceAndUse = 'Use case generation failed. Please check README for user information.';
+      // Try using the raw AI text before falling back
+      const rawUseCase = groqAnalysis.targetAudienceAndUse || '';
+      if (rawUseCase.trim().length >= 10) {
+        targetAudienceAndUse = rawUseCase.trim();
+      } else {
+        targetAudienceAndUse = 'Use case generation failed. Please check README for user information.';
+      }
     }
 
     // Format Improvements - NO DUPLICATION WITH WEAKNESSES

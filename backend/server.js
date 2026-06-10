@@ -45,15 +45,101 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for large repo data
 app.use(express.urlencoded({ extended: true }));
 
 // ✅ 4. DATABASE CONNECTION
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ MongoDB Connected');
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error('❌ MONGO_URI is not defined in .env');
+  process.exit(1);
+}
+
+// Ensure the URI has a database name
+const ensureDbName = (uri) => {
+  try {
+    const url = new URL(uri);
+    if (!url.pathname || url.pathname === '/') {
+      url.pathname = '/gitwise';
+    }
+    return url.toString();
+  } catch {
+    return uri;
+  }
+};
+
+// Build a direct (non-SRV) connection string as fallback
+const buildDirectURI = () => {
+  try {
+    const url = new URL(MONGO_URI);
+    const user = encodeURIComponent(url.username);
+    const pass = encodeURIComponent(url.password);
+    const host = url.hostname; // e.g. gitwisecluster.c2izct4.mongodb.net
+    const dbName = (url.pathname && url.pathname !== '/') ? url.pathname.slice(1) : 'gitwise';
+    
+    // Extract the cluster domain from hostname
+    const clusterMatch = host.match(/^([^.]+)\.([^.]+)\.mongodb\.net$/);
+    if (!clusterMatch) return null;
+    
+    const clusterDomain = clusterMatch[2]; // e.g. c2izct4
+    
+    // Standard MongoDB Atlas shard pattern (resolved from SRV records)
+    const shardHosts = [
+      `ac-vygtnli-shard-00-00.${clusterDomain}.mongodb.net:27017`,
+      `ac-vygtnli-shard-00-01.${clusterDomain}.mongodb.net:27017`,
+      `ac-vygtnli-shard-00-02.${clusterDomain}.mongodb.net:27017`
+    ].join(',');
+    
+    return `mongodb://${user}:${pass}@${shardHosts}/${dbName}?ssl=true&authSource=admin&retryWrites=true&w=majority`;
+  } catch (err) {
+    console.error('Failed to build direct URI:', err.message);
+    return null;
+  }
+};
+
+const connectMongoDB = async () => {
+  const primaryURI = ensureDbName(MONGO_URI);
+  console.log('🔗 Connecting to MongoDB...', primaryURI.replace(/\/\/[^@]+@/, '//***:***@'));
+  
+  try {
+    // Try SRV connection first (works on most networks)
+    await mongoose.connect(primaryURI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      family: 4,
+    });
+    console.log('✅ MongoDB Connected (SRV)');
     console.log(`🛡️ Allowed Client Origins: ${allowedOrigins.join(', ')}`);
-  })
-  .catch(err => {
+  } catch (err) {
+    // If SRV DNS lookup fails, try direct connection
+    if (err.message.includes('querySrv') || err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
+      console.warn('⚠️ SRV lookup failed, trying direct connection...');
+      const directURI = buildDirectURI();
+      
+      if (directURI) {
+        try {
+          await mongoose.connect(directURI, {
+            serverSelectionTimeoutMS: 15000,
+            socketTimeoutMS: 45000,
+            family: 4,
+            tls: true,
+          });
+          console.log('✅ MongoDB Connected (Direct)');
+          console.log(`🛡️ Allowed Client Origins: ${allowedOrigins.join(', ')}`);
+          return;
+        } catch (directErr) {
+          console.error('❌ Direct connection also failed:', directErr.message);
+        }
+      }
+    }
+    
     console.error('❌ MongoDB Connection Error:', err.message);
+    console.error('💡 Possible fixes:');
+    console.error('   1. Check if your IP is whitelisted in MongoDB Atlas (Network Access → Add Current IP)');
+    console.error('   2. Check your internet/firewall — SRV DNS records may be blocked');
+    console.error('   3. Set your DNS to 8.8.8.8 or 1.1.1.1 in network settings');
     process.exit(1);
-  });
+  }
+};
+
+connectMongoDB();
 
 // ✅ 5. ROUTES
 app.use('/api/repo', repoRoutes);

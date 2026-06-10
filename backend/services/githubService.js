@@ -19,7 +19,7 @@ const parseRepoUrl = (url) => {
  * @param {string} filePath - Path to the file
  * @returns {Promise<Object>} - File content and metadata
  */
-const fetchFileContent = async (owner, repoName, filePath) => {
+const fetchFileContent = async (owner, repoName, filePath, branch = 'main') => {
   const headers = {
     Authorization: `token ${GITHUB_TOKEN}`,
     Accept: 'application/vnd.github.v3.raw' // Get raw content
@@ -28,7 +28,7 @@ const fetchFileContent = async (owner, repoName, filePath) => {
   try {
     const response = await axios.get(
       `${BASE_URL}/repos/${owner}/${repoName}/contents/${filePath}`,
-      { headers, responseType: 'text' } // Ensure we get text
+      { headers, responseType: 'text', params: { ref: branch } } // Ensure we get text from correct branch
     );
 
     // Convert to string if it's not already
@@ -125,7 +125,7 @@ const fetchFileTreeRecursive = async (owner, repoName, path = '', depth = 2) => 
  * @param {string} repoUrl - The full GitHub repository URL
  * @returns {Promise<Object>} - Combined repo data
  */
-const fetchRepoData = async (repoUrl) => {
+const fetchRepoData = async (repoUrl, retryCount = 0) => {
   const { owner, repoName } = parseRepoUrl(repoUrl);
   
   const headers = {
@@ -136,11 +136,14 @@ const fetchRepoData = async (repoUrl) => {
   try {
     // Execute all requests in parallel for speed
     const [repoRes, commitsRes, contributorsRes, languagesRes] = await Promise.all([
-      axios.get(`${BASE_URL}/repos/${owner}/${repoName}`, { headers }),
-      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/commits?per_page=10`, { headers }),
-      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/contributors?per_page=10`, { headers }),
-      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/languages`, { headers })
+      axios.get(`${BASE_URL}/repos/${owner}/${repoName}`, { headers, timeout: 15000 }),
+      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/commits?per_page=10`, { headers, timeout: 15000 }),
+      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/contributors?per_page=10`, { headers, timeout: 15000 }),
+      axios.get(`${BASE_URL}/repos/${owner}/${repoName}/languages`, { headers, timeout: 15000 })
     ]);
+
+    const defaultBranch = repoRes.data.default_branch || 'main';
+    console.log(`📌 Default branch: ${defaultBranch}`);
 
     // Fetch file tree recursively (up to 2 levels deep)
     console.log('📂 Fetching file tree recursively...');
@@ -170,7 +173,8 @@ const fetchRepoData = async (repoUrl) => {
         description: repoRes.data.description || 'No description provided.',
         stars: repoRes.data.stargazers_count,
         forks: repoRes.data.forks_count,
-        languages: languagesRes.data
+        languages: languagesRes.data,
+        defaultBranch
       },
       recentCommits,
       contributors,
@@ -179,6 +183,14 @@ const fetchRepoData = async (repoUrl) => {
 
   } catch (error) {
     console.error('GitHub API Error:', error.response?.data || error.message);
+    
+    // Retry once for transient network errors
+    if (retryCount < 1 && (!error.response || error.response.status >= 500 || error.code === 'ECONNABORTED')) {
+      console.log(`🔄 Retrying GitHub fetch (attempt ${retryCount + 2})...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return fetchRepoData(repoUrl, retryCount + 1);
+    }
+    
     throw new Error(`Failed to fetch repo data: ${error.response?.data?.message || error.message}`);
   }
 };
