@@ -19,22 +19,23 @@ const PDFExportButton = ({ displayData }) => {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = htmlContent;
       
-      // 3. Style it to be invisible but renderable
+      // 3. Style it to be off-screen but fully rendered (opacity:1 so html2canvas can capture it)
       tempDiv.style.cssText = `
-        position: absolute;
+        position: fixed;
         top: 0;
-        left: 0;
-        width: 210mm; /* A4 width */
+        left: -9999px;
+        width: 794px;
         background: white;
-        z-index: -1;
-        opacity: 0; /* Invisible to user, but visible to html2canvas */
+        z-index: -9999;
+        opacity: 1;
         pointer-events: none;
+        overflow: visible;
       `;
       
       document.body.appendChild(tempDiv);
 
-      // 4. Wait a moment for the DOM to update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // 4. Wait for the DOM to fully paint (important for html2canvas)
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // 5. Format filename
       const repoName = displayData?.repoName || 'repository';
@@ -44,7 +45,7 @@ const PDFExportButton = ({ displayData }) => {
 
       // 6. PDF configuration
       const opt = {
-        margin: 0, // Remove margins here, handle padding in CSS
+        margin: 0,
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
@@ -55,7 +56,7 @@ const PDFExportButton = ({ displayData }) => {
           logging: false,
           scrollX: 0,
           scrollY: 0,
-          // Remove fixed windowWidth/Height to let it flow naturally
+          windowWidth: 794,
         },
         jsPDF: { 
           unit: 'mm', 
@@ -63,7 +64,6 @@ const PDFExportButton = ({ displayData }) => {
           orientation: 'portrait',
           compress: true
         },
-        // Handle page breaks based on CSS classes
         pagebreak: { mode: ['css', 'legacy'] }
       };
 

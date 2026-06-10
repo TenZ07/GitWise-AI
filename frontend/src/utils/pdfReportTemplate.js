@@ -29,7 +29,7 @@ export const generatePDFReport = (data) => {
   // Note: We use a single wrapper div with internal styles. 
   // Do NOT use <html> or <body> tags here.
   return `
-    <div style="width: 210mm; background: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1f2937; line-height: 1.5;">
+    <div style="width: 794px; background: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1f2937; line-height: 1.5;">
       <style>
         /* Reset & Base */
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,7 +41,7 @@ export const generatePDFReport = (data) => {
           padding: 40px;
           background: white;
           width: 100%;
-          min-height: 297mm; /* A4 Height */
+          min-height: 1123px; /* A4 Height in px at 96 DPI */
           position: relative;
         }
         
@@ -117,7 +117,7 @@ export const generatePDFReport = (data) => {
 
         /* Specific Components */
         .cover-page {
-          height: 297mm;
+          min-height: 1123px;
           display: flex;
           flex-direction: column;
           justify-content: center;

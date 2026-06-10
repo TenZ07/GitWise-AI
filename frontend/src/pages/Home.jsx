@@ -41,6 +41,11 @@ const Home = () => {
 
       toast.success(result.cached ? "Loaded from cache ⚡" : "Repository analyzed ✨");
 
+      // Save repoUrl to sessionStorage for page refresh recovery
+      if (repoData.repoUrl) {
+        sessionStorage.setItem('gitwise_repoUrl', repoData.repoUrl);
+      }
+
       navigate("/dashboard", { state: { repoData } });
     } catch (error) {
       let msg = "Failed to analyze repository";

@@ -16,14 +16,14 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   const initialData = location.state?.repoData;
-  const initialUrl = location.state?.repoData?.repoUrl;
+  const initialUrl = location.state?.repoData?.repoUrl || sessionStorage.getItem('gitwise_repoUrl');
 
   const [displayData, setDisplayData] = useState(initialData);
   const [repoUrl, setRepoUrl] = useState(initialUrl);
-  const [isLoading, setIsLoading] = useState(!initialData);
+  const [isLoading, setIsLoading] = useState(!initialData && !!initialUrl);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('analysis');
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(!!initialData);
 
 
   const fetchFromDatabase = useCallback(async (url) => {
@@ -31,9 +31,11 @@ const Dashboard = () => {
     setIsLoading(true);
     try {
       const result = await analyzeRepo(url, false);
-      if (result && result.data) {
-        setDisplayData(result.data);
-        setRepoUrl(result.data.repoUrl);
+      const repoData = result?.savedRepo || result?.existingRepo || result?.data;
+      if (repoData) {
+        setDisplayData(repoData);
+        setRepoUrl(repoData.repoUrl);
+        sessionStorage.setItem('gitwise_repoUrl', repoData.repoUrl);
         setHasLoaded(true);
       } else throw new Error("No data returned");
     } catch (error) {
@@ -45,6 +47,11 @@ const Dashboard = () => {
   }, [hasLoaded, navigate]);
 
   useEffect(() => {
+    // Save repoUrl to sessionStorage whenever we have it
+    if (repoUrl) {
+      sessionStorage.setItem('gitwise_repoUrl', repoUrl);
+    }
+    
     if (!displayData && repoUrl && !hasLoaded) {
       fetchFromDatabase(repoUrl);
     } else if (!displayData && !repoUrl) {
@@ -85,7 +92,7 @@ const Dashboard = () => {
         if (lowerLine.match(/(users?|developers?|teams?|business|customers?|audience)/i)) {
           return true;
         }
-        return line.trim().length > 20 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
+        return line.trim().length > 10 && !lowerLine.match(/^(add|implement|fix|update|create)\s+/i);
       })
       .join(' ')
       .trim();
@@ -96,8 +103,12 @@ const Dashboard = () => {
     
     if (aiSummary && aiSummary.trim().length > 0) {
       const cleaned = cleanSummaryText(aiSummary);
-      if (cleaned.length > 20) {
+      if (cleaned.length > 10) {
         return cleaned;
+      }
+      // If cleaning destroyed the content, use raw text
+      if (aiSummary.trim().length > 10) {
+        return aiSummary.trim();
       }
     }
     
@@ -109,8 +120,12 @@ const Dashboard = () => {
     
     if (aiUseCase && aiUseCase.trim().length > 0) {
       const cleaned = cleanSummaryText(aiUseCase);
-      if (cleaned.length > 15) {
+      if (cleaned.length > 10) {
         return cleaned;
+      }
+      // If cleaning destroyed the content, use raw text
+      if (aiUseCase.trim().length > 10) {
+        return aiUseCase.trim();
       }
     }
     
@@ -138,9 +153,11 @@ const Dashboard = () => {
     
     try {
       const result = await analyzeRepo(urlToUse.trim(), true);
-      if (result && result.data) {
-        setDisplayData(result.data);
-        setRepoUrl(result.data.repoUrl);
+      const repoData = result?.savedRepo || result?.existingRepo || result?.data;
+      if (repoData) {
+        setDisplayData(repoData);
+        setRepoUrl(repoData.repoUrl);
+        sessionStorage.setItem('gitwise_repoUrl', repoData.repoUrl);
         toast.success('Updated!', { 
           id: loadingToast,
           duration: 3000
@@ -418,9 +435,6 @@ const Dashboard = () => {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <CheckCircle className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium">
-                          SUGGESTION
-                        </span>
                       </div>
                       <p className="text-sm text-textMuted leading-relaxed group-hover:text-white transition">
                         {imp}
