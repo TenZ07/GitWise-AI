@@ -134,6 +134,12 @@ const analyzeCodeWithGroq = async (fileContents, repoInfo, readmeContent = '') =
 
     console.log(`🔍 Analyzing ${fileContents.length} files with Groq AI...`);
 
+    // Limit total code context size to prevent rate limits (TPM: 12000)
+    // We target a maximum of 18,000 characters for the combined code contents.
+    const maxTotalCodeChars = 18000;
+    const maxCharsPerFile = Math.max(800, Math.floor(maxTotalCodeChars / fileContents.length));
+    console.log(`[GROQ SERVICE] Dynamic content cap: max ${maxCharsPerFile} chars per file (total files: ${fileContents.length}).`);
+
     // Prepare code context
     const codeContext = fileContents
       .map(file => {
@@ -149,9 +155,12 @@ const analyzeCodeWithGroq = async (fileContents, repoInfo, readmeContent = '') =
           }
         }
         
+        const isTruncated = content.length > maxCharsPerFile;
+        const slicedContent = content.substring(0, maxCharsPerFile);
+        
         return `
 === FILE: ${file.path} ===
-${content.substring(0, 3000)} ${content.length > 3000 ? '... [truncated]' : ''}
+${slicedContent} ${isTruncated ? '\n... [truncated to save tokens]' : ''}
 `;
       })
       .join('\n\n');
@@ -163,7 +172,7 @@ REPOSITORY: ${repoInfo.owner}/${repoInfo.repoName}
 SHORT DESCRIPTION: ${repoInfo.description || 'No short description provided'}
 
 README CONTENT:
-${readmeContent ? readmeContent.substring(0, 4000) : 'No README file found'}
+${readmeContent ? readmeContent.substring(0, 2000) : 'No README file found'}
 
 ANALYZED FILES:
 ${fileContents.map(f => f.path).join('\n')}
