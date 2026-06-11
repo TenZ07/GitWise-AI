@@ -111,7 +111,7 @@ const Home = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-bg via-transparent to-bg" />
       </div>
 
-      {/* 🔘 GitHub Profile Button */}
+      
       <motion.a
         href="https://github.com/TenZ07"
         target="_blank"
@@ -130,7 +130,7 @@ const Home = () => {
         </div>
       </motion.a>
 
-      {/* 🏷️ Top-left Brand */}
+      
       <motion.div
         className="fixed top-5 left-7 z-50 flex items-center gap-2"
         initial={{ opacity: 0, x: -30 }}
@@ -143,7 +143,7 @@ const Home = () => {
         </span>
       </motion.div>
 
-      {/* 📱 Main Content */} 
+      
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
         <motion.div
           variants={containerVariants}
@@ -151,14 +151,14 @@ const Home = () => {
           animate={mounted ? "show" : "hidden"}
           className="max-w-4xl w-full text-center space-y-12"
         >
-          {/* 🏷️ Badge */}
+          
           <motion.div variants={itemVariants}>
             <div>
             </div>
             <div/>
           </motion.div>
 
-          {/* 🎯 Hero Title */}
+          
           <motion.div variants={itemVariants} className="space-y-6">
             <h1 className="text-6xl md:text-7xl font-bold tracking-tight leading-tight">
               <span className="text-textMain">Understand Any</span>
@@ -220,7 +220,7 @@ const Home = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-4 text-sm text-primary space-y-1"
                 >
-                  <p className="animate-pulse">🔍 Scanning repository structure...</p>
+                  <p className="animate-pulse">Scanning repository structure...</p>
                 </motion.div>
               )}
             </form>
