@@ -9,33 +9,55 @@ const PDFExportButton = ({ displayData }) => {
 
   const handleExport = async () => {
     setIsExporting(true);
+    console.log('[PDF EXPORT] Initializing PDF generation...');
     const loadingToast = toast.loading('Generating professional report...', { duration: 0 });
 
+    let tempDiv = null;
+
     try {
-      // 1. Generate HTML content (Now just a div, not a full document)
+      // 1. Generate HTML content
       const htmlContent = generatePDFReport(displayData);
+      console.log(`[PDF EXPORT] HTML report template generated. Length: ${htmlContent?.length || 0} characters.`);
 
       // 2. Create temporary container
-      const tempDiv = document.createElement('div');
+      tempDiv = document.createElement('div');
       tempDiv.innerHTML = htmlContent;
       
-      // 3. Style it to be off-screen but fully rendered (opacity:1 so html2canvas can capture it)
+      // 3. Style the temp div to be in-viewport (at 0,0) but hidden behind everything
+      // (left: 0, top: 0 allows html2canvas to capture it within windowWidth bounds)
       tempDiv.style.cssText = `
-        position: fixed;
+        position: absolute;
         top: 0;
-        left: -9999px;
+        left: 0;
         width: 794px;
         background: white;
-        z-index: -9999;
+        z-index: -99999;
         opacity: 1;
+        visibility: visible;
         pointer-events: none;
         overflow: visible;
+        display: block;
       `;
       
       document.body.appendChild(tempDiv);
+      console.log('[PDF EXPORT] Temporary div appended to body at origin (0, 0) under z-index -99999.');
 
-      // 4. Wait for the DOM to fully paint (important for html2canvas)
+      // 4. Wait for the DOM to fully paint (important for html2canvas to render completely)
+      console.log('[PDF EXPORT] Waiting 500ms for DOM repaint...');
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      console.log('[PDF EXPORT] tempDiv dimensions:', tempDiv.offsetWidth, 'x', tempDiv.offsetHeight);
+      console.log('[PDF EXPORT] tempDiv bounding rect:', tempDiv.getBoundingClientRect());
+      const container = tempDiv.querySelector('#pdf-report-container');
+      if (container) {
+        console.log('[PDF EXPORT] container dimensions:', container.offsetWidth, 'x', container.offsetHeight);
+        console.log('[PDF EXPORT] container children count:', container.children.length);
+        Array.from(container.children).forEach((child, i) => {
+          console.log(`[PDF EXPORT] child ${i} (${child.tagName}.${child.className.replace(/\s+/g, '.')}):`, child.offsetWidth, 'x', child.offsetHeight);
+        });
+      } else {
+        console.error('[PDF EXPORT] #pdf-report-container not found in tempDiv!');
+      }
 
       // 5. Format filename
       const repoName = displayData?.repoName || 'repository';
@@ -53,7 +75,7 @@ const PDFExportButton = ({ displayData }) => {
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
-          logging: false,
+          logging: true, // Enabled logging to aid troubleshooting in browser console
           scrollX: 0,
           scrollY: 0,
           windowWidth: 794,
@@ -67,18 +89,28 @@ const PDFExportButton = ({ displayData }) => {
         pagebreak: { mode: ['css', 'legacy'] }
       };
 
+      console.log('[PDF EXPORT] Launching html2pdf.js render and save targeting #pdf-report-container...');
       // 7. Generate PDF
-      await html2pdf().set(opt).from(tempDiv).save();
-
-      // 8. Cleanup
-      document.body.removeChild(tempDiv);
+      if (container) {
+        await html2pdf().set(opt).from(container).save();
+      } else {
+        await html2pdf().set(opt).from(tempDiv).save();
+      }
+      console.log('[PDF EXPORT] PDF saved successfully.');
 
       toast.success('Professional report exported!', { id: loadingToast, duration: 3000 });
     } catch (error) {
-      console.error('PDF Export Error:', error);
+      console.error('[PDF EXPORT] Error during PDF generation:', error);
       toast.error(`Failed to export: ${error.message}`, { id: loadingToast, duration: 4000 });
     } finally {
+      // 8. Cleanup
+      console.log('[PDF EXPORT] Cleaning up temporary DOM elements...');
+      if (tempDiv && tempDiv.parentNode) {
+        document.body.removeChild(tempDiv);
+        console.log('[PDF EXPORT] Temporary div removed from body.');
+      }
       setIsExporting(false);
+      console.log('[PDF EXPORT] PDF export flow complete.');
     }
   };
 

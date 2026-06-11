@@ -29,15 +29,18 @@ export const generatePDFReport = (data) => {
   // Note: We use a single wrapper div with internal styles. 
   // Do NOT use <html> or <body> tags here.
   return `
-    <div style="width: 794px; background: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1f2937; line-height: 1.5;">
+    <div id="pdf-report-container" style="width: 794px; background: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1f2937; line-height: 1.5; text-align: left; visibility: visible;">
       <style>
-        /* Reset & Base */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        h1, h2, h3, h4 { margin-bottom: 10px; }
-        p { margin-bottom: 10px; }
+        /* Reset & Base scoped to report container */
+        #pdf-report-container * { box-sizing: border-box; margin: 0; padding: 0; }
+        #pdf-report-container h1, 
+        #pdf-report-container h2, 
+        #pdf-report-container h3, 
+        #pdf-report-container h4 { margin-bottom: 10px; }
+        #pdf-report-container p { margin-bottom: 10px; }
         
         /* Page Structure for html2canvas */
-        .pdf-page {
+        #pdf-report-container .pdf-page {
           padding: 40px;
           background: white;
           width: 100%;
@@ -46,17 +49,17 @@ export const generatePDFReport = (data) => {
         }
         
         /* Force page breaks */
-        .page-break {
+        #pdf-report-container .page-break {
           page-break-after: always;
           break-after: page;
         }
-        .no-break {
+        #pdf-report-container .no-break {
           page-break-inside: avoid;
           break-inside: avoid;
         }
 
         /* Typography */
-        .section-header {
+        #pdf-report-container .section-header {
           font-size: 24px;
           font-weight: 700;
           color: #1e3a8a;
@@ -64,59 +67,64 @@ export const generatePDFReport = (data) => {
           padding-bottom: 10px;
           border-bottom: 3px solid #3b82f6;
         }
-        .subsection-header {
+        #pdf-report-container .subsection-header {
           font-size: 16px;
           font-weight: 600;
           color: #374151;
           margin: 20px 0 10px 0;
         }
 
-        /* Grids */
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
-        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
-        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+        /* Grids converted to Flexbox with margin spacing (no display:grid or gap) */
+        #pdf-report-container .grid-2 { display: flex; flex-wrap: wrap; margin: 20px -7px; }
+        #pdf-report-container .grid-2 > * { width: calc(50% - 14px); margin: 7px; flex: 0 0 calc(50% - 14px); box-sizing: border-box; }
+
+        #pdf-report-container .grid-3 { display: flex; flex-wrap: wrap; margin: 20px -7px; }
+        #pdf-report-container .grid-3 > * { width: calc(33.333% - 14px); margin: 7px; flex: 0 0 calc(33.333% - 14px); box-sizing: border-box; }
+
+        #pdf-report-container .grid-4 { display: flex; flex-wrap: wrap; margin: 20px -7px; }
+        #pdf-report-container .grid-4 > * { width: calc(25% - 14px); margin: 7px; flex: 0 0 calc(25% - 14px); box-sizing: border-box; }
 
         /* Cards */
-        .card {
+        #pdf-report-container .card {
           background: #f8fafc;
           padding: 15px;
           border-radius: 8px;
           border: 1px solid #e2e8f0;
         }
-        .score-card {
+        #pdf-report-container .score-card {
           background: #f8fafc;
           padding: 20px;
           border-radius: 8px;
           border: 1px solid #e2e8f0;
           text-align: center;
         }
-        .score-value { font-size: 28px; font-weight: 700; margin: 10px 0; }
-        .score-bar-bg { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 10px; }
-        .score-bar-fill { height: 100%; border-radius: 4px; }
+        #pdf-report-container .score-value { font-size: 28px; font-weight: 700; margin: 10px 0; }
+        #pdf-report-container .score-bar-bg { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+        #pdf-report-container .score-bar-fill { height: 100%; border-radius: 4px; }
 
         /* Severity Colors */
-        .sev-critical { background: #7f1d1d; color: white; }
-        .sev-high { background: #dc2626; color: white; }
-        .sev-medium { background: #d97706; color: white; }
-        .sev-low { background: #6b7280; color: white; }
+        #pdf-report-container .sev-critical { background: #7f1d1d; color: white; }
+        #pdf-report-container .sev-high { background: #dc2626; color: white; }
+        #pdf-report-container .sev-medium { background: #d97706; color: white; }
+        #pdf-report-container .sev-low { background: #6b7280; color: white; }
         
-        .severity-card { padding: 20px; border-radius: 8px; text-align: center; color: white; }
-        .severity-count { font-size: 32px; font-weight: 700; }
-        .severity-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
+        #pdf-report-container .severity-card { padding: 20px; border-radius: 8px; text-align: center; color: white; }
+        #pdf-report-container .severity-count { font-size: 32px; font-weight: 700; }
+        #pdf-report-container .severity-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
 
         /* Tables */
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 11px; }
-        th { background: #1e3a8a; color: white; padding: 8px; text-align: left; }
-        td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
-        tr:nth-child(even) { background: #f8fafc; }
-        .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; color: white; }
+        #pdf-report-container table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 11px; }
+        #pdf-report-container th { background: #1e3a8a; color: white; padding: 8px; text-align: left; }
+        #pdf-report-container td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+        #pdf-report-container tr:nth-child(even) { background: #f8fafc; }
+        #pdf-report-container .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; color: white; }
 
         /* Lists */
-        ul { list-style-type: disc; padding-left: 20px; margin-bottom: 15px; }
-        li { margin-bottom: 5px; font-size: 12px; }
+        #pdf-report-container ul { list-style-type: disc; padding-left: 20px; margin-bottom: 15px; }
+        #pdf-report-container li { margin-bottom: 5px; font-size: 12px; }
 
         /* Specific Components */
-        .cover-page {
+        #pdf-report-container .cover-page {
           min-height: 1123px;
           display: flex;
           flex-direction: column;
@@ -127,14 +135,14 @@ export const generatePDFReport = (data) => {
           color: white;
           padding: 60px;
         }
-        .exec-summary-box {
+        #pdf-report-container .exec-summary-box {
           background: #f8fafc;
           padding: 30px;
           border-radius: 8px;
           border-left: 4px solid #3b82f6;
           margin-bottom: 30px;
         }
-        .tech-tag {
+        #pdf-report-container .tech-tag {
           display: inline-block;
           background: #eff6ff;
           color: #1e40af;
@@ -146,7 +154,7 @@ export const generatePDFReport = (data) => {
           margin-right: 5px;
           margin-bottom: 5px;
         }
-        .code-block {
+        #pdf-report-container .code-block {
           background: #1f2937;
           color: #e5e7eb;
           padding: 15px;
@@ -157,6 +165,7 @@ export const generatePDFReport = (data) => {
           white-space: pre-wrap;
         }
       </style>
+
 
       <!-- ================= COVER PAGE ================= -->
       <div class="pdf-page cover-page">
