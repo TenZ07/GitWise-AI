@@ -280,7 +280,7 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
           { role: 'user', content: prompt }
         ],
         temperature: 0.3,
-        max_tokens: 2500
+        max_tokens: 4096
       },
       {
         headers: {
@@ -292,10 +292,17 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
     );
 
     console.log('📥 Groq code analysis response received');
+    console.log('📊 Groq usage:', JSON.stringify(response.data.usage || {}));
 
     let content = response.data.choices[0].message.content.trim();
+    const finishReason = response.data.choices[0].finish_reason;
     
-    console.log('📝 Response preview:', content.substring(0, 150) + '...');
+    console.log('📝 Response preview:', content.substring(0, 200) + '...');
+    console.log('🏁 Finish reason:', finishReason);
+    
+    if (finishReason === 'length') {
+      console.warn('⚠️ Groq response was TRUNCATED (hit max_tokens). Some fields may be missing.');
+    }
     
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     
@@ -305,26 +312,104 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
       content = content.substring(jsonStart, jsonEnd + 1);
     }
     
-    const analysis = JSON.parse(content);
+    let analysis;
+    try {
+      analysis = JSON.parse(content);
+    } catch (parseError) {
+      console.error('❌ JSON parse failed. Raw content length:', content.length);
+      console.error('❌ Last 100 chars:', content.substring(content.length - 100));
+      
+      // If truncated, try to fix the JSON by closing open structures
+      if (finishReason === 'length') {
+        console.log('🔧 Attempting to repair truncated JSON...');
+        let repaired = content;
+        // Close any open strings
+        const quoteCount = (repaired.match(/"/g) || []).length;
+        if (quoteCount % 2 !== 0) repaired += '"';
+        // Close open arrays and objects
+        const openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
+        const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
+        for (let i = 0; i < openBrackets; i++) repaired += ']';
+        for (let i = 0; i < openBraces; i++) repaired += '}';
+        
+        try {
+          analysis = JSON.parse(repaired);
+          console.log('✅ JSON repair successful');
+        } catch {
+          console.error('❌ JSON repair also failed, throwing original error');
+          throw parseError;
+        }
+      } else {
+        throw parseError;
+      }
+    }
     
-    console.log('✅ Groq code analysis completed');
+    // ✅ FIELD VALIDATION — Log what we got and fill missing fields
+    const expectedFields = ['functionalSummary', 'targetAudienceAndUse', 'codeQualityInsights', 
+      'securityConcerns', 'architecturePatterns', 'performanceIssues', 'bestPractices', 
+      'technicalDebt', 'improvements'];
+    
+    const missingFields = expectedFields.filter(f => !analysis[f]);
+    if (missingFields.length > 0) {
+      console.warn('⚠️ Missing fields in Groq response:', missingFields.join(', '));
+    }
+    
+    console.log('📋 Field validation:');
+    console.log('   functionalSummary:', analysis.functionalSummary ? `✅ (${analysis.functionalSummary.length} chars)` : '❌ MISSING');
+    console.log('   targetAudienceAndUse:', analysis.targetAudienceAndUse ? `✅ (${analysis.targetAudienceAndUse.length} chars)` : '❌ MISSING');
+    console.log('   improvements:', Array.isArray(analysis.improvements) ? `✅ (${analysis.improvements.length} items)` : '❌ MISSING');
+    console.log('   securityConcerns:', Array.isArray(analysis.securityConcerns) ? `✅ (${analysis.securityConcerns.length} items)` : '❌ MISSING');
+    
+    // Generate missing summary fields from available data
+    if (!analysis.functionalSummary || analysis.functionalSummary.trim().length < 10) {
+      console.warn('⚠️ Generating functionalSummary from repo info...');
+      const desc = repoInfo.description || '';
+      const langs = Object.keys(repoInfo.languages || {}).join(', ');
+      analysis.functionalSummary = desc 
+        ? `${repoInfo.repoName} — ${desc}. Built with ${langs || 'various technologies'}.`
+        : `${repoInfo.repoName} is a software project built with ${langs || 'various technologies'}. ${readmeContent ? 'See README for details.' : ''}`;
+    }
+    
+    if (!analysis.targetAudienceAndUse || analysis.targetAudienceAndUse.trim().length < 10) {
+      console.warn('⚠️ Generating targetAudienceAndUse from repo info and README...');
+      if (readmeContent && readmeContent.length > 50) {
+        // Extract first meaningful paragraph from README
+        const readmeLines = readmeContent.split('\n')
+          .filter(l => l.trim().length > 20 && !l.startsWith('#') && !l.startsWith('!') && !l.startsWith('|'))
+          .slice(0, 3);
+        analysis.targetAudienceAndUse = readmeLines.join(' ').substring(0, 500) || 
+          `This project is intended for developers and users working with ${Object.keys(repoInfo.languages || {}).join(', ') || 'this technology stack'}.`;
+      } else {
+        const desc = repoInfo.description || repoInfo.repoName;
+        analysis.targetAudienceAndUse = `This project is designed for developers and users who need ${desc}. It provides functionality built with ${Object.keys(repoInfo.languages || {}).join(', ') || 'modern technologies'}.`;
+      }
+    }
+    
+    // Ensure array fields exist
+    if (!Array.isArray(analysis.improvements)) analysis.improvements = [];
+    if (!Array.isArray(analysis.securityConcerns)) analysis.securityConcerns = [];
+    if (!Array.isArray(analysis.performanceIssues)) analysis.performanceIssues = [];
+    if (!Array.isArray(analysis.technicalDebt)) analysis.technicalDebt = [];
+    if (!analysis.codeQualityInsights) analysis.codeQualityInsights = { strengths: [], weaknesses: [], codeSmells: [] };
+    if (!analysis.architecturePatterns) analysis.architecturePatterns = { detected: [], recommendations: [] };
+    if (!analysis.bestPractices) analysis.bestPractices = { followed: [], missing: [] };
+    
+    console.log('✅ Groq code analysis completed with all fields validated');
     return analysis;
 
   } catch (error) {
     console.error('❌ Groq Code Analysis Error:');
-    console.error('Error type:', error.name);
-    console.error('Error message:', error.message);
+    console.error('   Error type:', error.name);
+    console.error('   Error message:', error.message);
     
     if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+      console.error('   Response status:', error.response.status);
+      console.error('   Response data:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
-      console.error('No response received from Groq API');
+      console.error('   No response received from Groq API');
     } else if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout');
+      console.error('   Request timeout');
     }
-    
-    console.error('Stack trace:', error.stack);
     
     // Minimal fallback only for error handling - throw error instead of fake data
     throw error;
@@ -334,4 +419,4 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
 module.exports = {
   identifyCriticalFiles,
   analyzeCodeWithGroq
-};
+};
