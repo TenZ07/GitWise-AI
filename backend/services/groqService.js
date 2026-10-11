@@ -2,6 +2,7 @@ const axios = require('axios');
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'openai/gpt-oss-120b';
 
 /**
  * Identifies critical files from directory structure using Groq AI
@@ -57,7 +58,7 @@ RESPONSE FORMAT (STRICT JSON):
     const response = await axios.post(
       GROQ_API_URL,
       {
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are a code analysis expert. Always respond with valid JSON only.' },
           { role: 'user', content: prompt }
@@ -283,7 +284,7 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
     const response = await axios.post(
       GROQ_API_URL,
       {
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are a code analysis expert. Return ONLY valid JSON. Use README for summaries, not generic fallbacks.' },
           { role: 'user', content: prompt }
