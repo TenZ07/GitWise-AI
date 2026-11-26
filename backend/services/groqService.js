@@ -4,6 +4,172 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 
+// Free-tier Groq models share an 8000 TPM budget across calls in the same minute.
+// Keep both the request context and the response cap small enough to stay under it.
+const GROQ_MAX_RETRIES = Math.max(1, Number(process.env.GROQ_MAX_RETRIES || 4));
+const GROQ_CODE_CHARS = Math.max(2000, Number(process.env.GROQ_CODE_CHARS || 9000));
+const GROQ_README_CHARS = Math.max(200, Number(process.env.GROQ_README_CHARS || 1200));
+const GROQ_CODE_MAX_TOKENS = Math.max(1024, Number(process.env.GROQ_CODE_MAX_TOKENS || 2600));
+const MAX_RETRY_WAIT_MS = 30000;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Best-effort repair for JSON that was cut off by a max_tokens limit.
+ * Tracks strings so brackets inside file paths never corrupt the structure.
+ */
+const repairTruncatedJson = (text) => {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  const stack = [];
+
+  for (const ch of text) {
+    if (inString) {
+      result += ch;
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      result += ch;
+      continue;
+    }
+    if (ch === '{' || ch === '[') {
+      stack.push(ch);
+      result += ch;
+      continue;
+    }
+    if (ch === '}' || ch === ']') {
+      stack.pop();
+      result += ch;
+      continue;
+    }
+    result += ch;
+  }
+
+  if (inString) result += escaped ? '\\"' : '"';
+  result = result.replace(/[\s,]+$/, '');
+
+  while (stack.length) {
+    const open = stack.pop();
+    result += open === '{' ? '}' : ']';
+  }
+  return result;
+};
+
+const stripFences = (content) => String(content || '')
+  .replace(/```json\n?/gi, '')
+  .replace(/```\n?/g, '')
+  .trim();
+
+const parseArrayResponse = (content) => {
+  const cleaned = stripFences(content);
+  const first = cleaned.indexOf('[');
+  const last = cleaned.lastIndexOf(']');
+  let source = first === -1 ? cleaned : cleaned.slice(first);
+  if (last > first) source = cleaned.slice(first, last + 1);
+
+  try {
+    const parsed = JSON.parse(source);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (_) {
+    // Fall through to the repair pass below.
+  }
+
+  const repaired = repairTruncatedJson(source);
+  const parsed = JSON.parse(repaired);
+  if (!Array.isArray(parsed)) throw new Error('AI did not return an array of file paths');
+  return parsed;
+};
+
+const parseObjectResponse = (content) => {
+  const cleaned = stripFences(content);
+  const first = cleaned.indexOf('{');
+  const last = cleaned.lastIndexOf('}');
+  let source = first === -1 ? cleaned : cleaned.slice(first);
+  if (last > first) source = cleaned.slice(first, last + 1);
+
+  try {
+    return JSON.parse(source);
+  } catch (parseError) {
+    console.error('❌ JSON parse failed. Raw content length:', source.length);
+    console.error('❌ Last 100 chars:', source.substring(source.length - 100));
+    console.log('🔧 Attempting to repair truncated JSON...');
+    try {
+      const repaired = repairTruncatedJson(source);
+      const analysis = JSON.parse(repaired);
+      console.log('✅ JSON repair successful');
+      return analysis;
+    } catch {
+      console.error('❌ JSON repair also failed, throwing original error');
+      throw parseError;
+    }
+  }
+};
+
+const isRetryableGroqError = (error) => {
+  const status = error.response?.status;
+  if (status === 429 || (status >= 500 && status < 600)) return true;
+  if (!status && ['ECONNABORTED', 'ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN'].includes(error.code)) return true;
+  return false;
+};
+
+const parseRetryDelayMs = (error, attempt) => {
+  const header = error.response?.headers?.['retry-after'];
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds)) {
+      return Math.max(1000, Math.min(MAX_RETRY_WAIT_MS, seconds * 1000 + 500));
+    }
+    const retryAt = Date.parse(header);
+    if (!Number.isNaN(retryAt)) {
+      return Math.max(1000, Math.min(MAX_RETRY_WAIT_MS, retryAt - Date.now() + 500));
+    }
+  }
+
+  const message = error.response?.data?.error?.message || error.message || '';
+  const match = message.match(/try again in\s+([\d.]+)\s*s/i);
+  if (match) {
+    return Math.max(1000, Math.min(MAX_RETRY_WAIT_MS, Number(match[1]) * 1000 + 500));
+  }
+  return Math.min(MAX_RETRY_WAIT_MS, 2000 * (2 ** (attempt - 1)));
+};
+
+/**
+ * POST to Groq with bounded retries for TPM 429s, 5xx and transient network errors.
+ */
+const callGroq = async (payload, timeout = 45000) => {
+  let lastError;
+
+  for (let attempt = 1; attempt <= GROQ_MAX_RETRIES; attempt++) {
+    try {
+      return await axios.post(GROQ_API_URL, payload, {
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableGroqError(error) || attempt === GROQ_MAX_RETRIES) throw error;
+
+      const waitMs = parseRetryDelayMs(error, attempt);
+      console.warn(
+        `⏳ Groq request throttled/failed (${error.response?.status || error.code || 'network'}) ` +
+        `— retry ${attempt}/${GROQ_MAX_RETRIES - 1} in ${(waitMs / 1000).toFixed(1)}s`
+      );
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastError;
+};
+
 /**
  * Identifies critical files from directory structure using Groq AI
  */
@@ -35,64 +201,44 @@ LANGUAGES: ${Object.keys(repoInfo.languages || {}).join(', ')}
 FILE STRUCTURE:
 ${filePaths.join('\n')}
 
-TASK: Identify the 10-15 MOST CRITICAL files that should be analyzed to understand this codebase. Focus on:
-1. Main entry points (index.js, main.py, app.js, server.js, etc.)
-2. Core business logic files
-3. Configuration files (package.json, requirements.txt, etc.)
-4. Database models/schemas
-5. API routes/controllers
-6. Key utility/helper files
-7. Important components (for frontend projects)
+TASK: Identify the 10-15 MOST CRITICAL files that reveal architecture and core functionality.
+Prioritize entry points, core logic, config files, models, routes/controllers and key utilities.
+Avoid tests, build output and documentation.
 
-RULES:
-- Prioritize files that reveal architecture and core functionality
-- Avoid test files, build outputs, and documentation
-- Limit to 15 files maximum
-- Return ONLY a JSON array of file paths, nothing else
-
-RESPONSE FORMAT (STRICT JSON):
-["path/to/file1.js", "path/to/file2.py", "path/to/file3.jsx"]`;
+Return ONLY a strict JSON array of exact paths from the FILE STRUCTURE above, maximum 15 items.
+Example: ["package.json", "src/index.js", "src/routes/api.js"]`;
 
     console.log('🤖 Calling Groq API to identify critical files...');
 
-    const response = await axios.post(
-      GROQ_API_URL,
-      {
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: 'You are a code analysis expert. Always respond with valid JSON only.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 500
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      }
-    );
+    const response = await callGroq({
+      model: GROQ_MODEL,
+      messages: [
+        { role: 'system', content: 'You are a code analysis expert. Reply with valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 800
+    });
 
-    let content = response.data.choices[0].message.content.trim();
-    
+    const content = response.data.choices[0]?.message?.content || '';
     console.log('📥 Groq response received:', content.substring(0, 100) + '...');
-    
-    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    const criticalFiles = JSON.parse(content);
-    
-    if (!Array.isArray(criticalFiles)) {
-      throw new Error('AI did not return an array of file paths');
+
+    const parsed = parseArrayResponse(content);
+    const validPaths = new Set(filePaths);
+    const criticalFiles = [...new Set(parsed.filter(path =>
+      typeof path === 'string' && validPaths.has(path)
+    ))].slice(0, 15);
+
+    if (criticalFiles.length === 0) {
+      throw new Error('AI returned no valid file paths from the repository');
     }
 
     console.log(`✅ Groq identified ${criticalFiles.length} critical files`);
-    return criticalFiles.slice(0, 15);
+    return criticalFiles;
 
   } catch (error) {
     console.error('❌ Groq Critical Files Error:', error.response?.data || error.message);
-    
+
     const fallbackFiles = fileTree
       .filter(item => item.type === 'file')
       .filter(item => {
@@ -135,13 +281,10 @@ const analyzeCodeWithGroq = async (fileContents, repoInfo, readmeContent = '') =
 
     console.log(`🔍 Analyzing ${fileContents.length} files with Groq AI...`);
 
-    // Limit total code context size to prevent rate limits (TPM: 12000)
-    // We target a maximum of 18,000 characters for the combined code contents.
-    const maxTotalCodeChars = 18000;
-    const maxCharsPerFile = Math.max(800, Math.floor(maxTotalCodeChars / fileContents.length));
+    // Keep the combined prompt under the free-tier TPM budget (8000 tokens/minute).
+    const maxCharsPerFile = Math.max(400, Math.floor(GROQ_CODE_CHARS / fileContents.length));
     console.log(`[GROQ SERVICE] Dynamic content cap: max ${maxCharsPerFile} chars per file (total files: ${fileContents.length}).`);
 
-    // Prepare code context
     const codeContext = fileContents
       .map(file => {
         let content = file.content;
@@ -155,10 +298,10 @@ const analyzeCodeWithGroq = async (fileContents, repoInfo, readmeContent = '') =
             content = String(content);
           }
         }
-        
+
         const isTruncated = content.length > maxCharsPerFile;
         const slicedContent = content.substring(0, maxCharsPerFile);
-        
+
         return `
 === FILE: ${file.path} ===
 ${slicedContent} ${isTruncated ? '\n... [truncated to save tokens]' : ''}
@@ -166,235 +309,117 @@ ${slicedContent} ${isTruncated ? '\n... [truncated to save tokens]' : ''}
       })
       .join('\n\n');
 
-    // ✅ UPDATED PROMPT - Includes README and prioritizes it for summaries
     const prompt = `You are a senior software architect performing a deep code review.
 
 REPOSITORY: ${repoInfo.owner}/${repoInfo.repoName}
-SHORT DESCRIPTION: ${repoInfo.description || 'No short description provided'}
+DESCRIPTION: ${repoInfo.description || 'No description provided'}
 
-README CONTENT:
-${readmeContent ? readmeContent.substring(0, 2000) : 'No README file found'}
+README EXCERPT:
+${readmeContent ? readmeContent.substring(0, GROQ_README_CHARS) : 'No README file found'}
 
-ANALYZED FILES:
+FILES ANALYZED:
 ${fileContents.map(f => f.path).join('\n')}
 
 CODE CONTENT:
 ${codeContext}
 
-⚠️ CRITICAL INSTRUCTIONS FOR SUMMARIES:
-1. **PRIMARY SOURCE**: Use the **README CONTENT** to write "functionalSummary" and "targetAudienceAndUse".
-2. **SECONDARY SOURCE**: If README is missing/short, use the **SHORT DESCRIPTION**.
-3. **TERTIARY SOURCE**: If both are missing, infer from **CODE CONTENT** (package.json, main files, imports).
-4. **NEVER USE GENERIC FALLBACKS**: Do not write "Used by developers working with...". Be specific based on the actual project.
-5. **NO IMPROVEMENTS IN SUMMARY**: Do not include "should", "could", "refactor", "improve" in summaries.
-
-Return a JSON object with this EXACT structure:
-
+Return a JSON object with EXACTLY these keys:
 {
-  "functionalSummary": "2-4 sentences describing WHAT this repository does based on README or Code. Be specific about features, technologies, and purpose.",
-  
-  "targetAudienceAndUse": "2-4 sentences describing WHO uses this software and WHY based on README or Code features. Focus on end-user goals.",
-  
+  "functionalSummary": "2-4 sentences on WHAT the repo does; use README first, then description, then code. Max 60 words.",
+  "targetAudienceAndUse": "2-4 sentences on WHO uses it and WHY; same source priority. Max 60 words.",
   "codeQualityInsights": {
-    "strengths": ["Strength 1", "Strength 2", "Strength 3"],
-    "weaknesses": ["Weakness 1", "Weakness 2", "Weakness 3"],
-    "codeSmells": ["Code smell 1", "Code smell 2"]
+    "strengths": ["3 concrete strengths"],
+    "weaknesses": ["3 current weaknesses"],
+    "codeSmells": ["2 code smells"]
   },
-  
   "securityConcerns": [
-    {
-      "issue": "Security issue description",
-      "severity": "HIGH|MEDIUM|LOW",
-      "file": "path/to/file.js",
-      "recommendation": "How to fix it"
-    }
+    { "issue": "description", "severity": "HIGH|MEDIUM|LOW", "file": "path", "recommendation": "fix" }
   ],
-  
   "architecturePatterns": {
-    "detected": ["Pattern 1", "Pattern 2"],
-    "recommendations": ["Recommendation 1", "Recommendation 2"]
+    "detected": ["patterns found"],
+    "recommendations": ["architectural recommendations"]
   },
-  
   "performanceIssues": [
-    {
-      "issue": "Performance concern",
-      "file": "path/to/file.js",
-      "impact": "HIGH|MEDIUM|LOW",
-      "solution": "How to optimize"
-    }
+    { "issue": "description", "file": "path", "impact": "HIGH|MEDIUM|LOW", "solution": "fix" }
   ],
-  
-  "bestPractices": {
-    "followed": ["Practice 1", "Practice 2"],
-    "missing": ["Missing practice 1", "Missing practice 2"]
-  },
-  
-  "technicalDebt": [
-    "Technical debt item 1",
-    "Technical debt item 2"
-  ],
-  
-  "improvements": [
-    "Actionable improvement suggestion 1 with specific file reference",
-    "Actionable improvement suggestion 2 with specific file reference",
-    "Actionable improvement suggestion 3 with specific file reference",
-    "Actionable improvement suggestion 4 with specific file reference",
-    "Actionable improvement suggestion 5 with specific file reference"
-  ]
+  "bestPractices": { "followed": ["practices"], "missing": ["practices"] },
+  "technicalDebt": ["items"],
+  "improvements": ["5 actionable suggestions with specific file references"]
 }
 
-EXAMPLE OF GOOD functionalSummary (README-based):
-"This repository contains a full-stack application for managing a snack box business. The frontend is built with React and utilizes various contexts for cart, customer, and menu management. The backend uses Express.js to handle API requests, including authentication, user management, and WhatsApp messaging."
-
-EXAMPLE OF BAD functionalSummary (generic fallback - DO NOT USE):
-"Used by developers working with JavaScript, CSS."
-
-EXAMPLE OF GOOD targetAudienceAndUse (README-based):
-"This software is designed for snack box business owners and customers. The application provides a user-friendly interface for customers to manage their carts, login, and receive updates via WhatsApp. Business owners can use the application to manage their menu, track sales, and send promotional messages."
-
-EXAMPLE OF BAD targetAudienceAndUse (generic fallback - DO NOT USE):
-"Used by developers working with web technologies."
-
-EXAMPLE OF GOOD improvements (actionable, not duplicated from weaknesses):
-[
-  "Add rate limiting to backend API endpoints to prevent DoS attacks (File: server/src/index.js)",
-  "Implement input validation for user data to prevent SQL injection (File: backend/routes/users.js)",
-  "Use bcrypt for secure password hashing instead of plain text (File: backend/routes/auth.js)",
-  "Add automated testing with Jest for critical endpoints (File: tests/)",
-  "Implement caching for database queries to improve performance (File: backend/routes/users.js)"
-]
-
-EXAMPLE OF BAD improvements (duplicated from weaknesses):
-[
-  "Limited error handling",
-  "Some functions have multiple responsibilities",
-  "No clear separation of concerns"
-]
-
-⚠️ REMEMBER:
-- Read the README first for summaries - it has the best project description
-- If README says "AI Chatbot", write about AI Chatbot features, NOT generic web app text
-- Weaknesses = CURRENT problems (for Deep Analysis section)
-- Improvements = ACTIONABLE solutions with file references (for Key Improvements section)
-- DO NOT copy weaknesses into improvements array
-- Return ONLY valid JSON, no markdown or extra text`;
+RULES:
+- Base summaries on the README, not generic phrases like "used by developers".
+- Arrays: at most 3 items except improvements (5) and codeSmells (2).
+- securityConcerns and performanceIssues must use the exact key names shown.
+- Improvements must be actionable solutions, not copies of weaknesses.
+- Return ONLY valid JSON, no markdown.`;
 
     console.log('🤖 Calling Groq API for code analysis...');
 
-    const response = await axios.post(
-      GROQ_API_URL,
-      {
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: 'You are a code analysis expert. Return ONLY valid JSON. Use README for summaries, not generic fallbacks.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 4096
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 60000
-      }
-    );
+    const response = await callGroq({
+      model: GROQ_MODEL,
+      messages: [
+        { role: 'system', content: 'You are a code analysis expert. Return ONLY valid JSON. Use the README for summaries.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: GROQ_CODE_MAX_TOKENS
+    }, 60000);
 
     console.log('📥 Groq code analysis response received');
     console.log('📊 Groq usage:', JSON.stringify(response.data.usage || {}));
 
-    let content = response.data.choices[0].message.content.trim();
-    const finishReason = response.data.choices[0].finish_reason;
-    
+    const content = response.data.choices[0]?.message?.content || '';
+    const finishReason = response.data.choices[0]?.finish_reason;
     console.log('📝 Response preview:', content.substring(0, 200) + '...');
     console.log('🏁 Finish reason:', finishReason);
-    
+
     if (finishReason === 'length') {
-      console.warn('⚠️ Groq response was TRUNCATED (hit max_tokens). Some fields may be missing.');
+      console.warn('⚠️ Groq response was TRUNCATED (hit max_tokens). Missing fields will be filled from repo metadata.');
     }
-    
-    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    const jsonStart = content.indexOf('{');
-    const jsonEnd = content.lastIndexOf('}');
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      content = content.substring(jsonStart, jsonEnd + 1);
-    }
-    
-    let analysis;
-    try {
-      analysis = JSON.parse(content);
-    } catch (parseError) {
-      console.error('❌ JSON parse failed. Raw content length:', content.length);
-      console.error('❌ Last 100 chars:', content.substring(content.length - 100));
-      
-      // If truncated, try to fix the JSON by closing open structures
-      if (finishReason === 'length') {
-        console.log('🔧 Attempting to repair truncated JSON...');
-        let repaired = content;
-        // Close any open strings
-        const quoteCount = (repaired.match(/"/g) || []).length;
-        if (quoteCount % 2 !== 0) repaired += '"';
-        // Close open arrays and objects
-        const openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
-        const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
-        for (let i = 0; i < openBrackets; i++) repaired += ']';
-        for (let i = 0; i < openBraces; i++) repaired += '}';
-        
-        try {
-          analysis = JSON.parse(repaired);
-          console.log('✅ JSON repair successful');
-        } catch {
-          console.error('❌ JSON repair also failed, throwing original error');
-          throw parseError;
-        }
-      } else {
-        throw parseError;
-      }
-    }
-    
+
+    const analysis = parseObjectResponse(content);
+
     // ✅ FIELD VALIDATION — Log what we got and fill missing fields
-    const expectedFields = ['functionalSummary', 'targetAudienceAndUse', 'codeQualityInsights', 
-      'securityConcerns', 'architecturePatterns', 'performanceIssues', 'bestPractices', 
+    const expectedFields = ['functionalSummary', 'targetAudienceAndUse', 'codeQualityInsights',
+      'securityConcerns', 'architecturePatterns', 'performanceIssues', 'bestPractices',
       'technicalDebt', 'improvements'];
-    
+
     const missingFields = expectedFields.filter(f => !analysis[f]);
     if (missingFields.length > 0) {
       console.warn('⚠️ Missing fields in Groq response:', missingFields.join(', '));
     }
-    
+
     console.log('📋 Field validation:');
     console.log('   functionalSummary:', analysis.functionalSummary ? `✅ (${analysis.functionalSummary.length} chars)` : '❌ MISSING');
     console.log('   targetAudienceAndUse:', analysis.targetAudienceAndUse ? `✅ (${analysis.targetAudienceAndUse.length} chars)` : '❌ MISSING');
     console.log('   improvements:', Array.isArray(analysis.improvements) ? `✅ (${analysis.improvements.length} items)` : '❌ MISSING');
     console.log('   securityConcerns:', Array.isArray(analysis.securityConcerns) ? `✅ (${analysis.securityConcerns.length} items)` : '❌ MISSING');
-    
+
     // Generate missing summary fields from available data
     if (!analysis.functionalSummary || analysis.functionalSummary.trim().length < 10) {
       console.warn('⚠️ Generating functionalSummary from repo info...');
       const desc = repoInfo.description || '';
       const langs = Object.keys(repoInfo.languages || {}).join(', ');
-      analysis.functionalSummary = desc 
+      analysis.functionalSummary = desc
         ? `${repoInfo.repoName} — ${desc}. Built with ${langs || 'various technologies'}.`
         : `${repoInfo.repoName} is a software project built with ${langs || 'various technologies'}. ${readmeContent ? 'See README for details.' : ''}`;
     }
-    
+
     if (!analysis.targetAudienceAndUse || analysis.targetAudienceAndUse.trim().length < 10) {
       console.warn('⚠️ Generating targetAudienceAndUse from repo info and README...');
       if (readmeContent && readmeContent.length > 50) {
-        // Extract first meaningful paragraph from README
         const readmeLines = readmeContent.split('\n')
           .filter(l => l.trim().length > 20 && !l.startsWith('#') && !l.startsWith('!') && !l.startsWith('|'))
           .slice(0, 3);
-        analysis.targetAudienceAndUse = readmeLines.join(' ').substring(0, 500) || 
+        analysis.targetAudienceAndUse = readmeLines.join(' ').substring(0, 500) ||
           `This project is intended for developers and users working with ${Object.keys(repoInfo.languages || {}).join(', ') || 'this technology stack'}.`;
       } else {
         const desc = repoInfo.description || repoInfo.repoName;
         analysis.targetAudienceAndUse = `This project is designed for developers and users who need ${desc}. It provides functionality built with ${Object.keys(repoInfo.languages || {}).join(', ') || 'modern technologies'}.`;
       }
     }
-    
+
     // Ensure array fields exist
     if (!Array.isArray(analysis.improvements)) analysis.improvements = [];
     if (!Array.isArray(analysis.securityConcerns)) analysis.securityConcerns = [];
@@ -403,7 +428,7 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
     if (!analysis.codeQualityInsights) analysis.codeQualityInsights = { strengths: [], weaknesses: [], codeSmells: [] };
     if (!analysis.architecturePatterns) analysis.architecturePatterns = { detected: [], recommendations: [] };
     if (!analysis.bestPractices) analysis.bestPractices = { followed: [], missing: [] };
-    
+
     console.log('✅ Groq code analysis completed with all fields validated');
     return analysis;
 
@@ -411,7 +436,7 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
     console.error('❌ Groq Code Analysis Error:');
     console.error('   Error type:', error.name);
     console.error('   Error message:', error.message);
-    
+
     if (error.response) {
       console.error('   Response status:', error.response.status);
       console.error('   Response data:', JSON.stringify(error.response.data, null, 2));
@@ -420,7 +445,7 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
     } else if (error.code === 'ECONNABORTED') {
       console.error('   Request timeout');
     }
-    
+
     // Minimal fallback only for error handling - throw error instead of fake data
     throw error;
   }
@@ -429,4 +454,4 @@ EXAMPLE OF BAD improvements (duplicated from weaknesses):
 module.exports = {
   identifyCriticalFiles,
   analyzeCodeWithGroq
-};
+};

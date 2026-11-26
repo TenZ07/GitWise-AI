@@ -9,6 +9,10 @@ Canonical tracker for issues found during live browser testing and code review. 
 - [x] [#5](https://github.com/TenZ07/GitWise-AI/issues/5) Add rate limiting to public analyze/chat endpoints — per-IP 429 limiter; live-verified.
 - [x] [#6](https://github.com/TenZ07/GitWise-AI/issues/6) React Router v7 future-flag warnings in console — flags enabled; live-verified.
 
+## Cycle 2 — in progress
+
+- [ ] [#21](https://github.com/TenZ07/GitWise-AI/issues/21) Groq 429 TPM limit causes internal error on large repos (`bloodborne_pc`) — prompt/output caps reduced, retry + JSON repair added; pending live verification.
+
 ## Backlog
 
 - [ ] [#7](https://github.com/TenZ07/GitWise-AI/issues/7) Dashboard deep links have no repo context (sessionStorage only)
