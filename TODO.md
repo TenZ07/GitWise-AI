@@ -9,10 +9,6 @@ Canonical tracker for issues found during live browser testing and code review. 
 - [x] [#5](https://github.com/TenZ07/GitWise-AI/issues/5) Add rate limiting to public analyze/chat endpoints — per-IP 429 limiter; live-verified.
 - [x] [#6](https://github.com/TenZ07/GitWise-AI/issues/6) React Router v7 future-flag warnings in console — flags enabled; live-verified.
 
-## Cycle 2 — in progress
-
-- [ ] [#21](https://github.com/TenZ07/GitWise-AI/issues/21) Groq 429 TPM limit causes internal error on large repos (`bloodborne_pc`) — prompt/output caps reduced, retry + JSON repair added; pending live verification.
-
 ## Backlog
 
 - [ ] [#7](https://github.com/TenZ07/GitWise-AI/issues/7) Dashboard deep links have no repo context (sessionStorage only)
@@ -22,7 +18,7 @@ Canonical tracker for issues found during live browser testing and code review. 
 - [ ] [#11](https://github.com/TenZ07/GitWise-AI/issues/11) “Deep code analysis” samples only 10–15 files
 - [ ] [#12](https://github.com/TenZ07/GitWise-AI/issues/12) Duplicate `cleanSummaryText` implementations
 - [ ] [#13](https://github.com/TenZ07/GitWise-AI/issues/13) Stale root `package.json`
-- [ ] [#14](https://github.com/TenZ07/GitWise-AI/issues/14) No automated tests
+- [ ] [#14](https://github.com/TenZ07/GitWise-AI/issues/14) Automated test coverage is minimal (one focused Groq regression test now exists)
 - [ ] [#15](https://github.com/TenZ07/GitWise-AI/issues/15) Unused dependencies
 - [ ] [#16](https://github.com/TenZ07/GitWise-AI/issues/16) Hardcoded MongoDB shard hosts in `buildDirectURI()` fallback
 - [ ] [#17](https://github.com/TenZ07/GitWise-AI/issues/17) Stateless chat endpoint has prompt-injection surface
@@ -37,3 +33,4 @@ Cycle 1 fixes shipped in commit `6e628ce` and deployed (Render `dep-dc4658ei0phs
 
 - [x] Dashboard hook-order crash (React error #310) — fixed in commit `72d9e103`, verified on a fresh deep link with cached repo URL.
 - [x] Chat model unavailable (OpenRouter 404 for the old free Nemotron slug) — `OPENROUTER_MODEL` set to `nvidia/nemotron-3.5-lightning:free`, chat retested successfully.
+- [x] [#21](https://github.com/TenZ07/GitWise-AI/issues/21) Groq 429 TPM limit on large repos (`bloodborne_pc`) — fixed in commit `6c95648`, Render deploy `dep-dc46odh7lnhs73figj3g`; live BrowserOS neo retest rendered the full dashboard, Groq usage was 3579 prompt + 1495 completion = 5074 tokens (under the 8000 TPM cap), no 429 or console errors, and `npm test` regression tests pass.
