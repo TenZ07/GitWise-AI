@@ -59,6 +59,11 @@ const Dashboard = () => {
     }
   }, [displayData, repoUrl, fetchFromDatabase, hasLoaded]);
 
+  useEffect(() => {
+    const dataRepoUrl = displayData?.repoUrl;
+    if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl);
+  }, [displayData?.repoUrl]);
+
   if (isLoading) return (
     <div className="min-h-screen bg-bg text-white flex flex-col items-center justify-center">
       <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
@@ -133,10 +138,6 @@ const Dashboard = () => {
   };
 
   const { techStack, codeHealthScore, improvements, stars, forks, contributors, recentCommits, owner, repoName, description, repoUrl: dataRepoUrl } = displayData;
-
-  useEffect(() => { 
-    if (dataRepoUrl && !repoUrl) setRepoUrl(dataRepoUrl); 
-  }, [dataRepoUrl]);
 
   const handleReanalyze = async () => {
     const urlToUse = repoUrl || dataRepoUrl;
