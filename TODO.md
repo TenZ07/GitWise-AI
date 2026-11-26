@@ -4,10 +4,10 @@ Canonical tracker for issues found during live browser testing and code review. 
 
 ## Cycle 1 — in progress
 
-- [ ] [#3](https://github.com/TenZ07/GitWise-AI/issues/3) Chat transcript is not reset after Re-analyze — `frontend/src/pages/Dashboard.jsx`
-- [ ] [#4](https://github.com/TenZ07/GitWise-AI/issues/4) Home URL validation only checks for substring `github.com` — `frontend/src/pages/Home.jsx`
-- [ ] [#5](https://github.com/TenZ07/GitWise-AI/issues/5) Add rate limiting to public analyze/chat endpoints — `backend/routes/repo.js`
-- [ ] [#6](https://github.com/TenZ07/GitWise-AI/issues/6) React Router v7 future-flag warnings in console — `frontend/src/App.jsx`
+- [x] [#3](https://github.com/TenZ07/GitWise-AI/issues/3) Chat transcript is not reset after Re-analyze — keyed `ChatBox`; live-verified.
+- [x] [#4](https://github.com/TenZ07/GitWise-AI/issues/4) Home URL validation only checks for substring `github.com` — strict regex + normalization; live-verified.
+- [x] [#5](https://github.com/TenZ07/GitWise-AI/issues/5) Add rate limiting to public analyze/chat endpoints — per-IP 429 limiter; live-verified.
+- [x] [#6](https://github.com/TenZ07/GitWise-AI/issues/6) React Router v7 future-flag warnings in console — flags enabled; live-verified.
 
 ## Backlog
 
@@ -28,6 +28,8 @@ Canonical tracker for issues found during live browser testing and code review. 
 - [ ] [#2](https://github.com/TenZ07/GitWise-AI/issues/2) Pre-existing: “Failed to Fetch Data from GITHUB !”
 
 ## Done
+
+Cycle 1 fixes shipped in commit `6e628ce` and deployed (Render `dep-dc4658ei0phs7398v2bg`, Vercel bundle `index-DYF1DwvK.js`). GitHub issues #3–#6 closed with verification notes.
 
 - [x] Dashboard hook-order crash (React error #310) — fixed in commit `72d9e103`, verified on a fresh deep link with cached repo URL.
 - [x] Chat model unavailable (OpenRouter 404 for the old free Nemotron slug) — `OPENROUTER_MODEL` set to `nvidia/nemotron-3.5-lightning:free`, chat retested successfully.
