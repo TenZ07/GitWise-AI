@@ -23,9 +23,12 @@ const Home = () => {
       return;
     }
 
-    const cleanUrl = url.trim();
+    const typedUrl = url.trim();
+    const cleanUrl = /^https?:\/\//i.test(typedUrl) ? typedUrl : `https://${typedUrl}`;
 
-    if (!cleanUrl.includes("github.com")) {
+    // Accept only GitHub owner/repo URLs (optional scheme, www, trailing slash or query/hash).
+    const githubRepoPattern = /^https?:\/\/(?:www\.)?github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?(?:[?#].*)?$/i;
+    if (!githubRepoPattern.test(cleanUrl)) {
       toast.error("Invalid GitHub repository");
       return;
     }

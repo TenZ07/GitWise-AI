@@ -24,6 +24,7 @@ const Dashboard = () => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('analysis');
   const [hasLoaded, setHasLoaded] = useState(!!initialData);
+  const [chatVersion, setChatVersion] = useState(0);
 
 
   const fetchFromDatabase = useCallback(async (url) => {
@@ -159,6 +160,7 @@ const Dashboard = () => {
         setDisplayData(repoData);
         setRepoUrl(repoData.repoUrl);
         sessionStorage.setItem('gitwise_repoUrl', repoData.repoUrl);
+        setChatVersion(v => v + 1);
         toast.success('Updated!', { 
           id: loadingToast,
           duration: 3000
@@ -504,7 +506,7 @@ const Dashboard = () => {
           {/* RIGHT COLUMN: Chat (4 cols) */}
           <div className={`lg:col-span-4 ${activeTab === 'analysis' ? 'hidden lg:block' : 'block'}`}>
             <div className="sticky top-24 h-[calc(100vh-8rem)]">
-              <ChatBox repoUrl={repoUrl || dataRepoUrl} />
+              <ChatBox key={`${chatVersion}-${repoUrl || dataRepoUrl}`} repoUrl={repoUrl || dataRepoUrl} />
             </div>
           </div>
 
